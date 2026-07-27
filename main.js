@@ -177,24 +177,49 @@ manager.onError = (url) => console.warn('Gagal memuat:', url);
 const texLoader = new THREE.TextureLoader(manager);
 const whiteMat = new THREE.MeshBasicMaterial({ color: 0xf5f3ee });
 
-const photoGroup = new THREE.Group();
-const floaters = [];
-
+// Preload each of the 10 source photos ONCE and reuse the texture object
+// across many small floating cubes — this is how we get "banyak foto"
+// (lots of photos on screen, grouped in clusters) without re-downloading
+// or re-decoding the same image over and over.
+const photoTextures = [];
 for (let i = 1; i <= PHOTO_COUNT; i++) {
   const tex = texLoader.load(`assets/photos/${i}.png`);
   if ('colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace;
-  const photoMat = new THREE.MeshBasicMaterial({ map: tex });
+  photoTextures.push(tex);
+}
 
-  const size = 3.0 + Math.random() * 1.4;
+const photoGroup = new THREE.Group();
+const floaters = [];
+
+// How many floating photo-cubes to scatter in total, and how many
+// "clusters" (little groups of photos near each other, like the examples
+// you gave: 1,5,2,9 in one spot / 2,3,4,7 in another / 1,7,2,8 elsewhere).
+const FLOATER_COUNT = 42;
+const CLUSTER_COUNT = 9;
+
+const clusters = Array.from({ length: CLUSTER_COUNT }, () => ({
+  angle: Math.random() * Math.PI * 2,
+  radius: 14 + Math.random() * 9,
+  baseY: (Math.random() - 0.5) * 7,
+}));
+
+for (let i = 0; i < FLOATER_COUNT; i++) {
+  const cluster = clusters[i % CLUSTER_COUNT];
+  const photoIdx = Math.floor(Math.random() * PHOTO_COUNT);
+  const photoMat = new THREE.MeshBasicMaterial({ map: photoTextures[photoIdx] });
+
+  // smaller cards than before, so the scene doesn't feel cluttered with
+  // oversized photos
+  const size = 1.35 + Math.random() * 0.75;
   const depth = size * 0.16;
   // Box faces order: +x,-x,+y,-y,+z,-z
   const materials = [whiteMat, whiteMat, whiteMat, whiteMat, photoMat, whiteMat];
   const geo = new THREE.BoxGeometry(size, size, depth);
   const cube = new THREE.Mesh(geo, materials);
 
-  const radius = 13.5 + Math.random() * 13;
-  const angle = Math.random() * Math.PI * 2;
-  const baseY = (Math.random() - 0.5) * 9;
+  const angle = cluster.angle + (Math.random() - 0.5) * 0.6;
+  const radius = cluster.radius + (Math.random() - 0.5) * 4.5;
+  const baseY = cluster.baseY + (Math.random() - 0.5) * 3.4;
 
   cube.position.set(Math.cos(angle) * radius, baseY, Math.sin(angle) * radius);
   cube.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
@@ -203,7 +228,7 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
     baseY,
     phase: Math.random() * Math.PI * 2,
     bobSpeed: 0.4 + Math.random() * 0.5,
-    bobAmp: 0.6 + Math.random() * 0.8,
+    bobAmp: 0.5 + Math.random() * 0.7,
     rotSpeed: new THREE.Vector3(
       (Math.random() - 0.5) * 0.25,
       (Math.random() - 0.5) * 0.35,
@@ -303,8 +328,11 @@ function animate() {
   const t = clock.getElapsedTime();
 
   // -------- intro: camera dolly-in + planet "pop" + starfield fade --------
+  // IMPORTANT: this block must stop touching camera.position/lookAt once the
+  // intro is finished, otherwise it fights OrbitControls every frame and the
+  // view looks "stuck" (can't be dragged) even though controls are enabled.
   let introP = 1; // 1 = fully settled
-  if (introStart !== null) {
+  if (introStart !== null && !introFinished) {
     const elapsed = (performance.now() - introStart) / 1000;
     introP = Math.min(1, elapsed / INTRO_DUR);
 
@@ -317,8 +345,11 @@ function animate() {
     starsNear.material.opacity = STAR_NEAR_OP * Math.min(1, elapsed / 1.3);
     starsFar.material.opacity = STAR_FAR_OP * Math.min(1, elapsed / 1.8);
 
-    if (introP >= 1 && !introFinished) {
+    if (introP >= 1) {
       introFinished = true;
+      world.scale.setScalar(1);
+      starsNear.material.opacity = STAR_NEAR_OP;
+      starsFar.material.opacity = STAR_FAR_OP;
       controls.enabled = true;
       controls.update();
     }
