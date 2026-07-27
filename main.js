@@ -34,8 +34,10 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.07;
 controls.enablePan = false;
 controls.enableZoom = true;
-controls.minDistance = 22;
-controls.maxDistance = 85;
+controls.zoomSpeed = 0.9;
+controls.rotateSpeed = 0.85;
+controls.minDistance = 15;
+controls.maxDistance = 100;
 controls.minPolarAngle = Math.PI * 0.12;
 controls.maxPolarAngle = Math.PI * 0.86;
 controls.autoRotate = false;
@@ -168,10 +170,7 @@ world.add(ring);
 
 // ---------- floating photo "polaroid cubes" ----------
 const manager = new THREE.LoadingManager();
-manager.onProgress = (_url, loaded, total) => {
-  const pct = Math.round((loaded / total) * 100);
-  loadingFill.style.width = pct + '%';
-};
+manager.onProgress = () => {}; // progress bar is time-driven below instead (assets load almost instantly)
 manager.onError = (url) => console.warn('Gagal memuat:', url);
 
 const texLoader = new THREE.TextureLoader(manager);
@@ -194,8 +193,10 @@ const floaters = [];
 // How many floating photo-cubes to scatter in total, and how many
 // "clusters" (little groups of photos near each other, like the examples
 // you gave: 1,5,2,9 in one spot / 2,3,4,7 in another / 1,7,2,8 elsewhere).
-const FLOATER_COUNT = 42;
-const CLUSTER_COUNT = 9;
+// This is intentionally MORE than PHOTO_COUNT — the same 10 source photos
+// get reused/randomized across many small floating cards.
+const FLOATER_COUNT = 24;
+const CLUSTER_COUNT = 7;
 
 const clusters = Array.from({ length: CLUSTER_COUNT }, () => ({
   angle: Math.random() * Math.PI * 2,
@@ -208,9 +209,8 @@ for (let i = 0; i < FLOATER_COUNT; i++) {
   const photoIdx = Math.floor(Math.random() * PHOTO_COUNT);
   const photoMat = new THREE.MeshBasicMaterial({ map: photoTextures[photoIdx] });
 
-  // smaller cards than before, so the scene doesn't feel cluttered with
-  // oversized photos
-  const size = 1.35 + Math.random() * 0.75;
+  // small cards — kept deliberately modest so they don't dominate the scene
+  const size = 1.0 + Math.random() * 0.6;
   const depth = size * 0.16;
   // Box faces order: +x,-x,+y,-y,+z,-z
   const materials = [whiteMat, whiteMat, whiteMat, whiteMat, photoMat, whiteMat];
@@ -305,6 +305,12 @@ window.addEventListener('resize', () => {
 });
 
 // ---------- loading screen out ----------
+// Assets here are tiny, so they can finish loading in well under a second —
+// which made the loading screen flash by almost instantly. We enforce a
+// minimum time on screen (~4s) so it doesn't feel abrupt.
+const PAGE_LOAD_START = performance.now();
+const MIN_LOADING_MS = 4000;
+
 let hidden = false;
 function hideLoading() {
   if (hidden) return;
@@ -316,9 +322,21 @@ function hideLoading() {
     setTimeout(() => { hintEl.classList.remove('show'); }, 4200);
   }, INTRO_DUR * 1000 * 0.6);
 }
-manager.onLoad = () => setTimeout(hideLoading, 350);
-// safety net in case something never fires onLoad
-setTimeout(hideLoading, 6000);
+function requestHideLoading() {
+  const elapsed = performance.now() - PAGE_LOAD_START;
+  const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+  setTimeout(hideLoading, remaining);
+}
+manager.onLoad = requestHideLoading;
+// safety net in case something never fires onLoad (e.g. a missing photo file)
+setTimeout(hideLoading, MIN_LOADING_MS + 2500);
+
+(function tickLoadingBar() {
+  const elapsed = performance.now() - PAGE_LOAD_START;
+  const pct = Math.min(100, (elapsed / MIN_LOADING_MS) * 100);
+  loadingFill.style.width = pct + '%';
+  if (!hidden) requestAnimationFrame(tickLoadingBar);
+})();
 
 // ---------- animation loop ----------
 const clock = new THREE.Clock();

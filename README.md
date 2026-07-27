@@ -72,8 +72,19 @@ https://USERNAME.github.io/NAMA-REPO/
 ## Kontrol interaksi
 
 - **Geser / drag** — memutar sudut pandang
-- **Cubit / scroll** — zoom in/out (dibatasi agar tidak terlalu dekat/jauh)
-- Planet hati beserta foto-foto akan tetap tumbling pelan otomatis meskipun tidak disentuh.
+- **Cubit / scroll wheel** — zoom in/out (dibatasi agar tidak terlalu dekat/jauh)
+- Planet beserta foto-foto akan tetap tumbling pelan otomatis meskipun tidak disentuh.
+- Loading awal sengaja ditahan minimal ~4 detik walau asetnya kecil, supaya tidak terasa "kedip" sekilas.
+- Ada 24 kartu foto kecil yang tersebar dalam beberapa kelompok, hasil acak dari 10 foto sumber (jadi wajar kalau foto yang sama muncul lebih dari sekali).
+
+## ⚠️ Kalau update tidak terlihat setelah push ke GitHub
+
+Browser dan GitHub Pages sering **cache** file `main.js` yang lama. Kalau kamu sudah `git push` tapi situs masih berperilaku seperti versi lama (misalnya masih terasa "stuck"):
+
+1. Pastikan commit & push-nya benar-benar berhasil (`git status`, `git log -1`).
+2. Tunggu 1–2 menit untuk build GitHub Pages selesai.
+3. **Hard refresh**: di iPhone Safari, buka situs lalu tarik ke bawah untuk refresh, atau hapus cache lewat Settings → Safari → Clear History and Website Data. Di Chrome/desktop, `Ctrl/Cmd+Shift+R`.
+4. File `index.html` di sini sudah memuat `main.js?v=3` (ada versi di belakangnya) supaya browser tahu file-nya berubah — kalau Anda edit `main.js` lagi nanti, naikkan angka `v=` ini (jadi `v=4`, dst) supaya cache selalu diperbarui.
 
 ## Catatan teknis
 
