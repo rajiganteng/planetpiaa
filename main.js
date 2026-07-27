@@ -2,7 +2,7 @@
 // ONLY FOR U — dunia kecil 3D berisi kenangan
 // ------------------------------------------------------------
 // GANTI DI SINI kalau mau ubah nama / teks judul:
-const RECIPIENT_NAME = "Kamu";
+const RECIPIENT_NAME = "Kakaa Piaaa";
 const TITLE_TEXT = `Only For U, ${RECIPIENT_NAME}`;
 // Jumlah foto yang dipakai (mengambil assets/photos/1.png .. N.png)
 const PHOTO_COUNT = 10;
@@ -45,6 +45,24 @@ controls.target.set(0, 2, 0);
 const world = new THREE.Group();
 scene.add(world);
 
+// ---------- soft circular sprite texture (fixes hard pixel/square dots) ----------
+function makeDotTexture() {
+  const size = 128;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.35, 'rgba(255,255,255,0.85)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+const dotTexture = makeDotTexture();
+
 // ---------- starfield (fixed, gentle independent drift) ----------
 function makeStars(count, rMin, rMax, size, color, opacity) {
   const positions = new Float32Array(count * 3);
@@ -60,48 +78,40 @@ function makeStars(count, rMin, rMax, size, color, opacity) {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   const mat = new THREE.PointsMaterial({
     color, size, sizeAttenuation: true, transparent: true,
-    opacity, depthWrite: false,
+    opacity, depthWrite: false, map: dotTexture, blending: THREE.AdditiveBlending,
   });
   return new THREE.Points(geo, mat);
 }
 
-const starsNear = makeStars(2200, 90, 220, 0.9, 0xffffff, 0.9);
-const starsFar = makeStars(3500, 220, 420, 1.3, 0xaab4ff, 0.6);
+const starsNear = makeStars(2200, 90, 220, 1.5, 0xffffff, 0.9);
+const starsFar = makeStars(3500, 220, 420, 2.0, 0xaab4ff, 0.6);
 scene.add(starsNear, starsFar);
 
-// ---------- heart-shaped particle core (red "planet") ----------
-function heartPoint(t) {
-  const x = 16 * Math.pow(Math.sin(t), 3);
-  const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-  return { x, y };
-}
-
-function buildHeart() {
-  const COUNT = 9000;
+// ---------- round particle planet (red/orange "sun-like" core) ----------
+function buildPlanet() {
+  const COUNT = 14000;
+  const RADIUS = 9.5;
   const positions = new Float32Array(COUNT * 3);
   const colors = new Float32Array(COUNT * 3);
   const deep = new THREE.Color(0x5c0a10);
-  const mid = new THREE.Color(0xc4241f);
-  const hot = new THREE.Color(0xff6a4d);
+  const mid = new THREE.Color(0xd8391f);
+  const hot = new THREE.Color(0xffb15a);
 
-  const SCALE = 0.62; // heart-curve units -> world units
   for (let i = 0; i < COUNT; i++) {
-    const t = Math.random() * Math.PI * 2;
-    const { x: bx, y: by } = heartPoint(t);
-    const s = Math.cbrt(Math.random()); // fuller toward surface, area-ish uniform
-    const depth = Math.sqrt(Math.max(0, 1 - s * s)) * 8 * (0.4 + Math.random() * 0.6);
+    // uniform-ish fill of a sphere, with a fuzzy/noisy surface
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const s = Math.cbrt(Math.random()); // 0 (core) -> 1 (surface)
+    const noise = 0.9 + Math.random() * 0.14; // fuzzy edge, not a perfect sphere
+    const r = RADIUS * s * noise;
 
-    const x = bx * s * SCALE;
-    const y = (by + 4) * s * SCALE; // +4 lifts the cusp so the heart centers nicer
-    const z = (Math.random() - 0.5) * depth * SCALE;
-
-    positions[i * 3] = x;
-    positions[i * 3 + 1] = y;
-    positions[i * 3 + 2] = z;
+    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.cos(phi);
+    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
 
     const c = new THREE.Color();
-    if (s > 0.82) c.copy(hot); else if (s > 0.45) c.copy(mid); else c.copy(deep);
-    c.offsetHSL((Math.random() - 0.5) * 0.02, 0, (Math.random() - 0.5) * 0.06);
+    if (s > 0.86) c.copy(hot); else if (s > 0.4) c.copy(mid); else c.copy(deep);
+    c.offsetHSL((Math.random() - 0.5) * 0.02, 0, (Math.random() - 0.5) * 0.05);
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
   }
 
@@ -109,16 +119,16 @@ function buildHeart() {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mat = new THREE.PointsMaterial({
-    size: 0.34, vertexColors: true, transparent: true, opacity: 0.95,
-    depthWrite: false, blending: THREE.AdditiveBlending,
+    size: 0.5, vertexColors: true, transparent: true, opacity: 0.95,
+    depthWrite: false, blending: THREE.AdditiveBlending, map: dotTexture,
   });
   const points = new THREE.Points(geo, mat);
   points.position.y = 1.5;
   return points;
 }
 
-const heart = buildHeart();
-world.add(heart);
+const planet = buildPlanet();
+world.add(planet);
 
 // ---------- ring / disc of pale particles around the heart ----------
 function buildRing() {
@@ -147,8 +157,8 @@ function buildRing() {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mat = new THREE.PointsMaterial({
-    size: 0.3, vertexColors: true, transparent: true, opacity: 0.85,
-    depthWrite: false, blending: THREE.AdditiveBlending,
+    size: 0.42, vertexColors: true, transparent: true, opacity: 0.85,
+    depthWrite: false, blending: THREE.AdditiveBlending, map: dotTexture,
   });
   return new THREE.Points(geo, mat);
 }
@@ -237,6 +247,31 @@ document.fonts && document.fonts.ready
   ? document.fonts.ready.then(() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })
   : (() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })();
 
+// ---------- cinematic intro animation ----------
+const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+const easeOutBack = (x) => {
+  const c1 = 1.70158, c3 = c1 + 1;
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+};
+
+const CAM_START = new THREE.Vector3(0, 70, 165);
+const CAM_END = camera.position.clone();
+const TARGET_FIXED = new THREE.Vector3(0, 2, 0);
+const INTRO_DUR = 2.8;
+
+controls.target.copy(TARGET_FIXED);
+controls.enabled = false;
+camera.position.copy(CAM_START);
+camera.lookAt(TARGET_FIXED);
+world.scale.setScalar(0.001);
+starsNear.material.opacity = 0;
+starsFar.material.opacity = 0;
+const STAR_NEAR_OP = 0.9, STAR_FAR_OP = 0.6;
+
+let introStart = null;
+let introFinished = false;
+function startIntro() { introStart = performance.now(); }
+
 // ---------- resize ----------
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -250,8 +285,11 @@ function hideLoading() {
   if (hidden) return;
   hidden = true;
   loadingEl.classList.add('hide');
-  hintEl.classList.add('show');
-  setTimeout(() => { hintEl.classList.remove('show'); }, 4200);
+  startIntro();
+  setTimeout(() => {
+    hintEl.classList.add('show');
+    setTimeout(() => { hintEl.classList.remove('show'); }, 4200);
+  }, INTRO_DUR * 1000 * 0.6);
 }
 manager.onLoad = () => setTimeout(hideLoading, 350);
 // safety net in case something never fires onLoad
@@ -264,7 +302,30 @@ function animate() {
   requestAnimationFrame(animate);
   const t = clock.getElapsedTime();
 
-  world.rotation.y = t * 0.09;
+  // -------- intro: camera dolly-in + planet "pop" + starfield fade --------
+  let introP = 1; // 1 = fully settled
+  if (introStart !== null) {
+    const elapsed = (performance.now() - introStart) / 1000;
+    introP = Math.min(1, elapsed / INTRO_DUR);
+
+    camera.position.lerpVectors(CAM_START, CAM_END, easeOutCubic(introP));
+    camera.lookAt(TARGET_FIXED);
+
+    const scaleP = Math.min(1, elapsed / (INTRO_DUR * 0.8));
+    world.scale.setScalar(Math.max(0.001, easeOutBack(scaleP)));
+
+    starsNear.material.opacity = STAR_NEAR_OP * Math.min(1, elapsed / 1.3);
+    starsFar.material.opacity = STAR_FAR_OP * Math.min(1, elapsed / 1.8);
+
+    if (introP >= 1 && !introFinished) {
+      introFinished = true;
+      controls.enabled = true;
+      controls.update();
+    }
+  }
+
+  // extra unwind spin during intro settles into the normal slow tumble
+  world.rotation.y = t * 0.09 + (1 - introP) * Math.PI * 4;
   world.rotation.x = Math.sin(t * 0.12) * 0.10;
   world.rotation.z = Math.cos(t * 0.09) * 0.05;
 
@@ -279,7 +340,7 @@ function animate() {
     cube.rotation.z += d.rotSpeed.z * 0.01;
   }
 
-  controls.update();
+  if (controls.enabled) controls.update();
   renderer.render(scene, camera);
 }
 
