@@ -5,6 +5,17 @@
 const TITLE_TEXT = "Only For U, Kakaaa Piaaaaa🤍";
 // Jumlah foto sumber yang dipakai (assets/photos/1.png .. N.png)
 const PHOTO_COUNT = 10;
+
+// ---- musik ----
+// Ganti assets/audio/song.mp3 dengan lagu aslimu (nama file boleh sama persis).
+// Lagu akan mulai diputar dari detik AUDIO_START, dan otomatis berhenti di
+// detik AUDIO_END. AUDIO_EPIC menandai momen "epic" di lagu — animasi masuk
+// planet akan pas selesai/menetap tepat di detik itu.
+const AUDIO_SRC = 'assets/audio/song.mp3';
+const AUDIO_START = 36;   // 0:36
+const AUDIO_EPIC = 46;    // 0:46 — bagian epic, animasi intro menetap di sini
+const AUDIO_END = 199;    // 3:19 — lagu berhenti di sini
+const AUDIO_VOLUME = 0.85;
 // ============================================================
 
 import * as THREE from './vendor/three.module.min.js';
@@ -17,19 +28,101 @@ const hintEl = document.getElementById('hint');
 const gateEl = document.getElementById('gate');
 const gateYesBtn = document.getElementById('gateYes');
 const gateNoBtn = document.getElementById('gateNo');
-const gateTauntEl = document.getElementById('gateTaunt');
 
 // ============================================================
 // GATE / GERBANG — "mau lihat cewe tercantik di dunia gak?"
 // the "no" button dodges away so it can never actually be pressed.
+// A little synthesized "womp" sound plays on each dodge instead of text
+// (no external audio file needed).
 // ============================================================
-const TAUNTS = [
-  'eh kok gabisa yaa 😆',
-  'coba lagi deh~ 😝',
-  'ga akan ketekan itu 🙈',
-  'yaudah pencet yang satunya aja 😌',
-  'gagal lagi hehe 😜',
-];
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    audioCtx = new AC();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playDodgeSound() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(560, now);
+  osc.frequency.exponentialRampToValueAtTime(150, now + 0.26);
+  gain.gain.setValueAtTime(0.2, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.3);
+}
+
+// ============================================================
+// MUSIK — dimulai bertepatan dengan animasi masuk ke planet utama.
+// ============================================================
+const bgm = new Audio(AUDIO_SRC);
+bgm.preload = 'auto';
+bgm.volume = 0;
+bgm.addEventListener('error', () => {
+  console.warn('Audio tidak ditemukan/gagal dimuat:', AUDIO_SRC, '— letakkan file lagu di', AUDIO_SRC);
+});
+
+let bgmFadeRAF = null;
+function fadeAudio(from, to, ms, onDone) {
+  if (bgmFadeRAF) cancelAnimationFrame(bgmFadeRAF);
+  const start = performance.now();
+  function step(now) {
+    const p = Math.min(1, (now - start) / ms);
+    bgm.volume = Math.max(0, Math.min(1, from + (to - from) * p));
+    if (p < 1) {
+      bgmFadeRAF = requestAnimationFrame(step);
+    } else if (onDone) {
+      onDone();
+    }
+  }
+  bgmFadeRAF = requestAnimationFrame(step);
+}
+
+function unlockAudio() {
+  // Playing (then immediately pausing) inside a real user-gesture handler
+  // "unlocks" the element so later programmatic .play() calls (e.g. after
+  // the loading screen, with no fresh gesture) are still allowed — this
+  // matters especially on iOS Safari.
+  const p = bgm.play();
+  if (p && p.catch) p.catch(() => {});
+  bgm.pause();
+  try { bgm.currentTime = AUDIO_START; } catch (e) {}
+}
+
+function startBgmPlayback() {
+  const begin = () => {
+    try { bgm.currentTime = AUDIO_START; } catch (e) {}
+    bgm.volume = 0;
+    const p = bgm.play();
+    if (p && p.catch) p.catch((e) => console.warn('Autoplay musik diblokir:', e));
+    fadeAudio(0, AUDIO_VOLUME, 1500);
+  };
+  if (bgm.readyState >= 1) begin();
+  else bgm.addEventListener('loadedmetadata', begin, { once: true });
+}
+
+bgm.addEventListener('timeupdate', () => {
+  if (bgm.paused) return;
+  if (bgm.currentTime >= AUDIO_END) {
+    bgm.pause();
+    return;
+  }
+  const FADE_OUT_MS = 800;
+  const remaining = (AUDIO_END - bgm.currentTime) * 1000;
+  if (remaining <= FADE_OUT_MS && !bgm._fadingOut) {
+    bgm._fadingOut = true;
+    fadeAudio(bgm.volume, 0, FADE_OUT_MS);
+  }
+});
 
 function moveNoButtonAwayFrom(clientX, clientY) {
   const btn = gateNoBtn;
@@ -55,7 +148,7 @@ function moveNoButtonAwayFrom(clientX, clientY) {
     btn.style.left = x + 'px';
     btn.style.top = y + 'px';
   });
-  gateTauntEl.textContent = TAUNTS[Math.floor(Math.random() * TAUNTS.length)];
+  playDodgeSound();
 }
 
 gateNoBtn.addEventListener('pointerenter', (e) => moveNoButtonAwayFrom(e.clientX, e.clientY));
@@ -79,6 +172,7 @@ let gateDismissed = false;
 gateYesBtn.addEventListener('click', () => {
   if (gateDismissed) return;
   gateDismissed = true;
+  unlockAudio();
   gateEl.classList.add('hide');
   startLoadingSequence();
 });
@@ -276,13 +370,13 @@ const floaters = [];
 // "clusters" (little groups of photos near each other). This is
 // intentionally MORE than PHOTO_COUNT — the same 10 source photos get
 // reused/randomized across many small floating cards.
-const FLOATER_COUNT = 24;
-const CLUSTER_COUNT = 7;
+const FLOATER_COUNT = 60;
+const CLUSTER_COUNT = 12;
 
 const clusters = Array.from({ length: CLUSTER_COUNT }, () => ({
   angle: Math.random() * Math.PI * 2,
-  radius: 14 + Math.random() * 9,
-  baseY: (Math.random() - 0.5) * 7,
+  radius: 13 + Math.random() * 15,
+  baseY: (Math.random() - 0.5) * 8,
 }));
 
 // 9:16 portrait card — width:height = 9:16
@@ -300,8 +394,10 @@ for (let i = 0; i < FLOATER_COUNT; i++) {
   const h = CARD_H * scale;
   const depth = w * 0.14;
 
-  // Box faces order: +x,-x,+y,-y,+z,-z
-  const materials = [whiteMat, whiteMat, whiteMat, whiteMat, photoMat, whiteMat];
+  // Box faces order: +x,-x,+y,-y,+z,-z — show the photo on BOTH the front
+  // (+z) and back (-z) faces so the card reads as a photo from either side
+  // instead of a blank white back.
+  const materials = [whiteMat, whiteMat, whiteMat, whiteMat, photoMat, photoMat];
   const geo = new THREE.BoxGeometry(w, h, depth);
   const cube = new THREE.Mesh(geo, materials);
 
@@ -378,22 +474,74 @@ document.fonts && document.fonts.ready
   ? document.fonts.ready.then(() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })
   : (() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })();
 
-// ---------- cinematic intro animation (camera dolly + planet "pop") ----------
+// ---------- cinematic intro animation: multi-phase camera flythrough ----------
+// Instead of a single straight dolly-in, the camera swoops toward the planet
+// along a curved path, overshoots, swings back out, does a smaller second
+// bounce, then settles — all choreographed to land exactly on the "epic"
+// moment in the music (AUDIO_EPIC).
 const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
 const easeOutBack = (x) => {
   const c1 = 1.70158, c3 = c1 + 1;
   return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
 };
+const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
-const CAM_START = new THREE.Vector3(0, 70, 165);
-const CAM_END = camera.position.clone();
 const TARGET_FIXED = new THREE.Vector3(0, 2, 0);
-const INTRO_DUR = 2.8;
+// intro runs exactly as long as it takes the music to go from AUDIO_START to
+// AUDIO_EPIC, so the flythrough finishes right as the "epic" part hits
+const INTRO_DUR = Math.max(3, AUDIO_EPIC - AUDIO_START);
+
+// describe the camera's resting position (where it ends up / where
+// OrbitControls takes over) in spherical terms around TARGET_FIXED
+const REST_OFFSET = camera.position.clone().sub(TARGET_FIXED);
+const REST_RADIUS = REST_OFFSET.length();
+const REST_POLAR = Math.acos(THREE.MathUtils.clamp(REST_OFFSET.y / REST_RADIUS, -1, 1));
+const REST_AZIMUTH = Math.atan2(REST_OFFSET.x, REST_OFFSET.z);
+
+function sphericalToPos(az, pol, r) {
+  return new THREE.Vector3(
+    TARGET_FIXED.x + r * Math.sin(pol) * Math.sin(az),
+    TARGET_FIXED.y + r * Math.cos(pol),
+    TARGET_FIXED.z + r * Math.sin(pol) * Math.cos(az)
+  );
+}
+
+// keyframes: [time fraction, azimuth, polar, radius]
+// swoop in from far away -> overshoot past the planet -> swing back out the
+// other side -> smaller second bounce -> settle at the resting spot
+const FLY_KEYFRAMES = [
+  { t: 0.00, az: REST_AZIMUTH + 2.6, pol: REST_POLAR - 0.35, r: REST_RADIUS + 210 },
+  { t: 0.22, az: REST_AZIMUTH + 1.1, pol: REST_POLAR + 0.10, r: REST_RADIUS + 30 },
+  { t: 0.38, az: REST_AZIMUTH + 0.5, pol: REST_POLAR - 0.06, r: REST_RADIUS - 22 },   // overshoot closer
+  { t: 0.55, az: REST_AZIMUTH - 0.4, pol: REST_POLAR + 0.08, r: REST_RADIUS + 26 },   // bolak-balik: swing back out + other side
+  { t: 0.72, az: REST_AZIMUTH + 0.12, pol: REST_POLAR - 0.03, r: REST_RADIUS - 10 },  // smaller second bounce in
+  { t: 0.88, az: REST_AZIMUTH - 0.03, pol: REST_POLAR + 0.015, r: REST_RADIUS + 5 },
+  { t: 1.00, az: REST_AZIMUTH, pol: REST_POLAR, r: REST_RADIUS },
+];
+
+function sampleFlyPath(p) {
+  for (let i = 0; i < FLY_KEYFRAMES.length - 1; i++) {
+    const a = FLY_KEYFRAMES[i], b = FLY_KEYFRAMES[i + 1];
+    if (p >= a.t && p <= b.t) {
+      const local = (p - a.t) / (b.t - a.t || 1);
+      const e = easeInOutCubic(local);
+      return {
+        az: THREE.MathUtils.lerp(a.az, b.az, e),
+        pol: THREE.MathUtils.lerp(a.pol, b.pol, e),
+        r: THREE.MathUtils.lerp(a.r, b.r, e),
+      };
+    }
+  }
+  return FLY_KEYFRAMES[FLY_KEYFRAMES.length - 1];
+}
 
 controls.target.copy(TARGET_FIXED);
 controls.enabled = false;
-camera.position.copy(CAM_START);
-camera.lookAt(TARGET_FIXED);
+{
+  const startPos = sphericalToPos(FLY_KEYFRAMES[0].az, FLY_KEYFRAMES[0].pol, FLY_KEYFRAMES[0].r);
+  camera.position.copy(startPos);
+  camera.lookAt(TARGET_FIXED);
+}
 world.scale.setScalar(0.001);
 starsNear.material.opacity = 0;
 starsFar.material.opacity = 0;
@@ -401,7 +549,7 @@ const STAR_NEAR_OP = 0.9, STAR_FAR_OP = 0.6;
 
 let introStart = null;
 let introFinished = false;
-function startIntro() { introStart = performance.now(); }
+function startIntro() { introStart = performance.now(); startBgmPlayback(); }
 
 // ---------- resize ----------
 window.addEventListener('resize', () => {
@@ -429,7 +577,7 @@ function hideLoading() {
   setTimeout(() => {
     hintEl.classList.add('show');
     setTimeout(() => { hintEl.classList.remove('show'); }, 4200);
-  }, INTRO_DUR * 1000 * 0.6);
+  }, INTRO_DUR * 1000 * 0.95);
 }
 
 function requestHideLoading() {
@@ -464,7 +612,7 @@ function animate() {
   requestAnimationFrame(animate);
   const t = clock.getElapsedTime();
 
-  // -------- intro: camera dolly-in + planet "pop" + starfield fade --------
+  // -------- intro: multi-phase camera flythrough + planet "pop" + starfield fade --------
   // IMPORTANT: this block must stop touching camera.position/lookAt once the
   // intro is finished, otherwise it fights OrbitControls every frame and the
   // view looks "stuck" (can't be dragged) even though controls are enabled.
@@ -473,10 +621,13 @@ function animate() {
     const elapsed = (performance.now() - introStart) / 1000;
     introP = Math.min(1, elapsed / INTRO_DUR);
 
-    camera.position.lerpVectors(CAM_START, CAM_END, easeOutCubic(introP));
+    const fly = sampleFlyPath(introP);
+    camera.position.copy(sphericalToPos(fly.az, fly.pol, fly.r));
     camera.lookAt(TARGET_FIXED);
 
-    const scaleP = Math.min(1, elapsed / (INTRO_DUR * 0.8));
+    // the planet itself "pops" into being fairly quickly (first ~3s),
+    // while the camera keeps swooping around it for the rest of the intro
+    const scaleP = Math.min(1, elapsed / 3.0);
     world.scale.setScalar(Math.max(0.001, easeOutBack(scaleP)));
 
     starsNear.material.opacity = STAR_NEAR_OP * Math.min(1, elapsed / 1.3);
@@ -492,8 +643,12 @@ function animate() {
     }
   }
 
-  // extra unwind spin during intro settles into the normal slow tumble
-  world.rotation.y = t * 0.09 + (1 - introP) * Math.PI * 4;
+  // extra unwind spin resolves within the first few seconds, independent of
+  // the overall (now longer) intro duration, then settles into a slow tumble
+  const spinUnwindP = introStart !== null
+    ? Math.min(1, (performance.now() - introStart) / 1000 / 3.5)
+    : 1;
+  world.rotation.y = t * 0.09 + (1 - easeOutCubic(spinUnwindP)) * Math.PI * 3;
   world.rotation.x = Math.sin(t * 0.12) * 0.10;
   world.rotation.z = Math.cos(t * 0.09) * 0.05;
 

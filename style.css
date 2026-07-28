@@ -38,13 +38,17 @@ html,body{
 
 .gate-buttons{
   position:relative;
-  display:flex; gap:16px; flex-wrap:wrap; justify-content:center;
-  width:100%; max-width:420px; min-height:60px;
+  display:flex; gap:clamp(8px,3vw,16px); flex-wrap:nowrap; justify-content:center;
+  align-items:center;
+  width:100%; max-width:460px; min-height:60px;
 }
 
 .gate-btn{
-  font-size:1.02rem; padding:15px 28px; border-radius:999px; border:none;
+  font-size:clamp(0.78rem, 3.6vw, 1.02rem);
+  padding:clamp(10px,3.2vw,15px) clamp(14px,4.5vw,28px);
+  border-radius:999px; border:none;
   cursor:pointer; font-weight:700; font-family:inherit;
+  white-space:nowrap;
   -webkit-tap-highlight-color:transparent;
 }
 
@@ -64,10 +68,6 @@ html,body{
   color:#cfcbe0;
   border:1px solid rgba(255,255,255,.18);
   transition:left .22s cubic-bezier(.34,1.56,.64,1), top .22s cubic-bezier(.34,1.56,.64,1);
-}
-
-.gate-taunt{
-  min-height:18px; font-size:.8rem; color:var(--muted); margin:0;
 }
 
 /* ================= loading screen ================= */
