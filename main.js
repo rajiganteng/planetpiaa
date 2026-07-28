@@ -124,16 +124,38 @@ bgm.addEventListener('timeupdate', () => {
   }
 });
 
-function moveNoButtonAwayFrom(clientX, clientY) {
-  const btn = gateNoBtn;
-  if (btn.style.position !== 'fixed') {
+// Pin BOTH buttons to fixed pixel positions right away (matching their
+// natural flex layout). This is what keeps "mauuu😍" perfectly still —
+// if only the "no" button switched to position:fixed, removing it from the
+// flex flow would leave "mauuu😍" alone in the row and the browser would
+// re-center it, making it look like it moved.
+function pinGateButtons() {
+  [gateYesBtn, gateNoBtn].forEach((btn) => {
     const r = btn.getBoundingClientRect();
     btn.style.position = 'fixed';
     btn.style.left = r.left + 'px';
     btn.style.top = r.top + 'px';
     btn.style.margin = '0';
-    btn.style.zIndex = '5';
+  });
+}
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => requestAnimationFrame(pinGateButtons));
+} else {
+  requestAnimationFrame(pinGateButtons);
+}
+setTimeout(pinGateButtons, 350); // safety net in case fonts.ready is slow/unavailable
+window.addEventListener('resize', () => {
+  if (!gateEl.classList.contains('hide')) {
+    gateNoBtn.style.position = '';
+    gateYesBtn.style.position = '';
+    gateNoBtn.style.left = gateNoBtn.style.top = '';
+    gateYesBtn.style.left = gateYesBtn.style.top = '';
+    requestAnimationFrame(pinGateButtons);
   }
+});
+
+function moveNoButtonAwayFrom(clientX, clientY) {
+  const btn = gateNoBtn;
   requestAnimationFrame(() => {
     const w = btn.offsetWidth, h = btn.offsetHeight;
     const pad = 20;
@@ -226,6 +248,35 @@ function makeDotTexture() {
 }
 const dotTexture = makeDotTexture();
 
+// ---------- per-particle "twinkle" shimmer (position never changes, only
+// size/brightness gently pulses per-particle) so the star/ring/planet dots
+// don't look flat and static ----------
+const twinkleMaterials = [];
+function addTwinkle(points, speed = 1.2, strength = 0.4) {
+  const geometry = points.geometry;
+  const material = points.material;
+  const count = geometry.attributes.position.count;
+  const phases = new Float32Array(count);
+  for (let i = 0; i < count; i++) phases[i] = Math.random() * Math.PI * 2;
+  geometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = { value: 0 };
+    shader.uniforms.uSpeed = { value: speed };
+    shader.uniforms.uStrength = { value: strength };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aPhase;\nuniform float uTime;\nuniform float uSpeed;\nuniform float uStrength;\nvarying float vTwinkle;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTwinkle = 1.0 - uStrength + uStrength * (0.5 + 0.5 * sin(uTime * uSpeed + aPhase * 6.2831852));')
+      .replace('gl_PointSize = size;', 'gl_PointSize = size * vTwinkle;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vTwinkle;')
+      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse, opacity * mix(0.55, 1.0, vTwinkle) );');
+    material.userData.shader = shader;
+  };
+  material.needsUpdate = true;
+  twinkleMaterials.push(material);
+}
+
 // ---------- starfield (fixed, gentle independent drift) ----------
 function makeStars(count, rMin, rMax, size, color, opacity) {
   const positions = new Float32Array(count * 3);
@@ -248,6 +299,8 @@ function makeStars(count, rMin, rMax, size, color, opacity) {
 
 const starsNear = makeStars(2200, 90, 220, 1.5, 0xffffff, 0.9);
 const starsFar = makeStars(3500, 220, 420, 2.0, 0xaab4ff, 0.6);
+addTwinkle(starsNear, 0.9, 0.5);
+addTwinkle(starsFar, 0.6, 0.45);
 scene.add(starsNear, starsFar);
 
 // ---------- heart-shaped particle planet — dense, deep red ("merah pekat") ----------
@@ -301,6 +354,7 @@ function buildPlanet() {
 }
 
 const planet = buildPlanet();
+addTwinkle(planet, 1.4, 0.35);
 world.add(planet);
 
 // ---------- ring / disc of pale particles around the planet ----------
@@ -337,6 +391,7 @@ function buildRing() {
 }
 
 const ring = buildRing();
+addTwinkle(ring, 1.1, 0.4);
 world.add(ring);
 
 // ---------- floating photo cards (9:16, portrait, small) ----------
@@ -366,77 +421,94 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
 const photoGroup = new THREE.Group();
 const floaters = [];
 
-// How many floating photo-cards to scatter in total, and how many
-// "clusters" (little groups of photos near each other). This is
-// intentionally MORE than PHOTO_COUNT — the same 10 source photos get
-// reused/randomized across many small floating cards.
-const FLOATER_COUNT = 60;
-const CLUSTER_COUNT = 12;
-
-const clusters = Array.from({ length: CLUSTER_COUNT }, () => ({
-  angle: Math.random() * Math.PI * 2,
-  radius: 13 + Math.random() * 15,
-  baseY: (Math.random() - 0.5) * 8,
-}));
+// How many floating photo-cards to scatter in total. This is intentionally
+// MORE than PHOTO_COUNT — the same 10 source photos get reused/randomized
+// across many small floating cards.
+//
+// Positioning uses evenly-spaced angles across a few concentric "rings" at
+// different radius/height (with jitter for an organic feel) instead of
+// random clusters — that guarantees the photos actually surround the whole
+// planet with no big empty gaps, instead of randomly clumping on one side.
+const FLOATER_COUNT = 110;
+const RINGS = [
+  { radius: 14, ySpread: 2.2, yCenter: -1.2 },
+  { radius: 19, ySpread: 2.6, yCenter: 0 },
+  { radius: 24.5, ySpread: 3.2, yCenter: 1.4 },
+];
+const perRing = Math.ceil(FLOATER_COUNT / RINGS.length);
 
 // 9:16 portrait card — width:height = 9:16
 const CARD_W = 1;
 const CARD_H = CARD_W * (16 / 9);
 
-for (let i = 0; i < FLOATER_COUNT; i++) {
-  const cluster = clusters[i % CLUSTER_COUNT];
-  const photoIdx = Math.floor(Math.random() * PHOTO_COUNT);
-  const photoMat = new THREE.MeshBasicMaterial({ map: photoTextures[photoIdx] });
+let floaterIndex = 0;
+for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
+  const ring = RINGS[ringIdx];
+  // stagger each ring's starting angle so the rings don't all line up radially
+  const ringOffset = (ringIdx / RINGS.length) * Math.PI * 2 * 0.33;
 
-  // small scale factor so cards stay modest in size
-  const scale = 1.05 + Math.random() * 0.55;
-  const w = CARD_W * scale;
-  const h = CARD_H * scale;
-  const depth = w * 0.14;
+  for (let k = 0; k < perRing && floaterIndex < FLOATER_COUNT; k++, floaterIndex++) {
+    const photoIdx = Math.floor(Math.random() * PHOTO_COUNT);
+    const photoMat = new THREE.MeshBasicMaterial({ map: photoTextures[photoIdx] });
 
-  // Box faces order: +x,-x,+y,-y,+z,-z — show the photo on BOTH the front
-  // (+z) and back (-z) faces so the card reads as a photo from either side
-  // instead of a blank white back.
-  const materials = [whiteMat, whiteMat, whiteMat, whiteMat, photoMat, photoMat];
-  const geo = new THREE.BoxGeometry(w, h, depth);
-  const cube = new THREE.Mesh(geo, materials);
+    const scale = 1.0 + Math.random() * 0.5;
+    const w = CARD_W * scale;
+    const h = CARD_H * scale;
+    const depth = w * 0.14;
 
-  const angle = cluster.angle + (Math.random() - 0.5) * 0.6;
-  const radius = cluster.radius + (Math.random() - 0.5) * 4.5;
-  const baseY = cluster.baseY + (Math.random() - 0.5) * 3.4;
+    // Box faces order: +x,-x,+y,-y,+z,-z — show the photo on BOTH the front
+    // (+z) and back (-z) faces so the card reads as a photo from either side
+    // instead of a blank white back.
+    const materials = [whiteMat, whiteMat, whiteMat, whiteMat, photoMat, photoMat];
+    const geo = new THREE.BoxGeometry(w, h, depth);
+    const cube = new THREE.Mesh(geo, materials);
 
-  cube.position.set(Math.cos(angle) * radius, baseY, Math.sin(angle) * radius);
-  cube.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    // evenly spaced base angle within this ring + gentle jitter — this is
+    // what guarantees full 360° coverage around the planet
+    const slice = (Math.PI * 2) / perRing;
+    const angle = ringOffset + k * slice + (Math.random() - 0.5) * slice * 0.5;
+    const radius = ring.radius + (Math.random() - 0.5) * 3;
+    const baseY = ring.yCenter + (Math.random() - 0.5) * ring.ySpread;
 
-  cube.userData = {
-    baseY,
-    phase: Math.random() * Math.PI * 2,
-    bobSpeed: 0.4 + Math.random() * 0.5,
-    bobAmp: 0.5 + Math.random() * 0.7,
-    rotSpeed: new THREE.Vector3(
-      (Math.random() - 0.5) * 0.25,
-      (Math.random() - 0.5) * 0.35,
-      (Math.random() - 0.5) * 0.2
-    ),
-  };
+    cube.position.set(Math.cos(angle) * radius, baseY, Math.sin(angle) * radius);
 
-  photoGroup.add(cube);
-  floaters.push(cube);
+    // Face roughly outward/inward with only a SMALL random tilt — enough for
+    // an organic, non-uniform look, but never enough to flip the card
+    // upside down or edge-on (that's what read as "kebalik" before).
+    const facingY = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.5;
+    const tiltX = (Math.random() - 0.5) * 0.22;
+    const tiltZ = (Math.random() - 0.5) * 0.18;
+    cube.rotation.set(tiltX, facingY, tiltZ);
+
+    cube.userData = {
+      baseY,
+      baseRotX: tiltX,
+      baseRotZ: tiltZ,
+      spinSpeed: 0.05 + Math.random() * 0.06, // slow, steady, upright-preserving spin
+      phase: Math.random() * Math.PI * 2,
+      bobSpeed: 0.4 + Math.random() * 0.5,
+      bobAmp: 0.5 + Math.random() * 0.6,
+      wobbleAmp: 0.06 + Math.random() * 0.05,
+    };
+
+    photoGroup.add(cube);
+    floaters.push(cube);
+  }
 }
 world.add(photoGroup);
 
-// ---------- title text — readable from BOTH front and back ----------
-// A single plane rotated 180° would show the SAME texture mirrored from
-// behind. To make it read correctly from both sides we build two planes
-// back-to-back, where the back one has its canvas text drawn pre-mirrored
-// so the geometric flip un-mirrors it again.
-function buildTitleCanvas(text, mirrored) {
+// ---------- title text — always faces the camera (billboard) ----------
+// Stays positioned above the tumbling planet (it's still a child of
+// `world`, so it orbits along with the planet's slow tumble), but each
+// frame we cancel out the parent's rotation on its ORIENTATION only, so the
+// text itself always faces the camera directly and is never upside down or
+// mirrored.
+function buildTitleCanvas(text) {
   const canvasEl = document.createElement('canvas');
   const W = 1800, H = 320;
   canvasEl.width = W; canvasEl.height = H;
   const ctx = canvasEl.getContext('2d');
   ctx.clearRect(0, 0, W, H);
-  if (mirrored) { ctx.translate(W, 0); ctx.scale(-1, 1); }
   ctx.fillStyle = '#f4f1ff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -450,23 +522,12 @@ function buildTitleCanvas(text, mirrored) {
 }
 
 function buildTitle(text) {
-  const group = new THREE.Group();
+  const { tex, aspect } = buildTitleCanvas(text);
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
   const height = 4.6;
-
-  const front = buildTitleCanvas(text, false);
-  const frontMat = new THREE.MeshBasicMaterial({ map: front.tex, transparent: true, depthWrite: false });
-  const frontMesh = new THREE.Mesh(new THREE.PlaneGeometry(height * front.aspect, height), frontMat);
-  frontMesh.position.z = 0.02;
-
-  const back = buildTitleCanvas(text, true);
-  const backMat = new THREE.MeshBasicMaterial({ map: back.tex, transparent: true, depthWrite: false });
-  const backMesh = new THREE.Mesh(new THREE.PlaneGeometry(height * back.aspect, height), backMat);
-  backMesh.rotation.y = Math.PI;
-  backMesh.position.z = -0.02;
-
-  group.add(frontMesh, backMesh);
-  group.position.set(0, 15.5, 0);
-  return group;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(height * aspect, height), mat);
+  mesh.position.set(0, 15.5, 0);
+  return mesh;
 }
 
 let titleMesh = null;
@@ -569,16 +630,24 @@ let PAGE_LOAD_START = null;
 let loadingSequenceStarted = false;
 let hidden = false;
 
+const welcomeCardEl = document.getElementById('welcomeCard');
+const getInBtn = document.getElementById('getInBtn');
+
 function hideLoading() {
   if (hidden) return;
   hidden = true;
   loadingEl.classList.add('hide');
+  welcomeCardEl.classList.add('show');
+}
+
+getInBtn.addEventListener('click', () => {
+  welcomeCardEl.classList.remove('show');
   startIntro();
   setTimeout(() => {
     hintEl.classList.add('show');
     setTimeout(() => { hintEl.classList.remove('show'); }, 4200);
   }, INTRO_DUR * 1000 * 0.95);
-}
+});
 
 function requestHideLoading() {
   if (!loadingSequenceStarted) return; // gate not dismissed yet — ignore for now
@@ -652,15 +721,29 @@ function animate() {
   world.rotation.x = Math.sin(t * 0.12) * 0.10;
   world.rotation.z = Math.cos(t * 0.09) * 0.05;
 
+  // keep the title always facing the camera, regardless of the planet's
+  // own tumble (it still travels/orbits with the planet since it's parented
+  // to `world` — only its ORIENTATION is corrected here)
+  if (titleMesh) {
+    const parentQuat = new THREE.Quaternion().setFromEuler(world.rotation);
+    titleMesh.quaternion.copy(parentQuat.clone().invert().multiply(camera.quaternion));
+  }
+
   starsNear.rotation.y = t * 0.01;
   starsFar.rotation.y = -t * 0.006;
 
   for (const cube of floaters) {
     const d = cube.userData;
     cube.position.y = d.baseY + Math.sin(t * d.bobSpeed + d.phase) * d.bobAmp;
-    cube.rotation.x += d.rotSpeed.x * 0.01;
-    cube.rotation.y += d.rotSpeed.y * 0.01;
-    cube.rotation.z += d.rotSpeed.z * 0.01;
+    // slow continuous spin around Y (never flips the card upside down),
+    // plus a small gentle wobble on X/Z for organic life without tumbling
+    cube.rotation.y += d.spinSpeed * 0.016;
+    cube.rotation.x = d.baseRotX + Math.sin(t * 0.5 + d.phase) * d.wobbleAmp;
+    cube.rotation.z = d.baseRotZ + Math.cos(t * 0.4 + d.phase) * d.wobbleAmp;
+  }
+
+  for (const mat of twinkleMaterials) {
+    if (mat.userData.shader) mat.userData.shader.uniforms.uTime.value = t;
   }
 
   if (controls.enabled) controls.update();

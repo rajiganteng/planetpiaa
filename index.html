@@ -25,11 +25,24 @@
   <div id="loading" class="loading">
     <div class="loading-planet" aria-hidden="true">
       <div class="lp-ring"></div>
-      <div class="lp-sphere"></div>
+      <div class="lp-sphere">
+        <div class="lp-stripes"></div>
+        <div class="lp-shade"></div>
+      </div>
       <div class="lp-ring lp-ring-front"></div>
     </div>
     <p class="loading-title">tungguuu sebentarrr kakkk</p>
     <div class="loading-bar"><div class="loading-bar-fill" id="loadingFill"></div></div>
+  </div>
+
+  <!-- ===== WELCOME CARD (shown after loading, before entering the planet) ===== -->
+  <div id="welcomeCard" class="welcome-screen">
+    <div class="welcome-card">
+      <div class="welcome-heart">♥</div>
+      <p class="welcome-label">SPECIAL FOR YOU</p>
+      <h2 class="welcome-title">a little space,<br>made with love</h2>
+      <button id="getInBtn" class="welcome-btn">GET IN</button>
+    </div>
   </div>
 
   <!-- ===== 3D CANVAS ===== -->
@@ -40,6 +53,6 @@
     <div class="ui-hint" id="hint">Geser untuk memutar · Cubit untuk memperbesar</div>
   </div>
 
-  <script type="module" src="main.js?v=6"></script>
+  <script type="module" src="main.js?v=8"></script>
 </body>
 </html>

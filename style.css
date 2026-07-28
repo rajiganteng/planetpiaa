@@ -67,10 +67,54 @@ html,body{
   background:rgba(255,255,255,.08);
   color:#cfcbe0;
   border:1px solid rgba(255,255,255,.18);
+  z-index:5;
   transition:left .22s cubic-bezier(.34,1.56,.64,1), top .22s cubic-bezier(.34,1.56,.64,1);
 }
 
-/* ================= loading screen ================= */
+/* ================= welcome card (after loading) ================= */
+.welcome-screen{
+  position:fixed; inset:0; z-index:150;
+  background:radial-gradient(ellipse at 50% 30%, #fff0f2 0%, #ffe1e6 100%);
+  display:flex; align-items:center; justify-content:center;
+  padding:24px;
+  opacity:0; visibility:hidden; pointer-events:none;
+  transition:opacity .6s ease, visibility .6s ease;
+}
+.welcome-screen.show{
+  opacity:1; visibility:visible; pointer-events:auto;
+}
+.welcome-card{
+  background:linear-gradient(180deg,#ffffff,#fff6f7);
+  border-radius:28px;
+  padding:44px 34px 38px;
+  max-width:360px; width:100%;
+  text-align:center;
+  box-shadow:0 24px 60px rgba(180,20,40,.18), 0 4px 14px rgba(0,0,0,.06);
+}
+.welcome-heart{
+  font-size:2.4rem; color:#8f0f1c; line-height:1; margin-bottom:14px;
+}
+.welcome-label{
+  font-family:'Playfair Display', Georgia, serif;
+  font-size:.72rem; letter-spacing:.25em; color:#c81e34;
+  margin:0 0 10px; font-weight:600;
+}
+.welcome-title{
+  font-family:'Playfair Display', Georgia, serif; font-weight:700;
+  font-size:clamp(1.5rem,6vw,2rem); line-height:1.25;
+  color:#7a0f1c; margin:0 0 28px;
+}
+.welcome-btn{
+  width:100%; border:none; border-radius:999px;
+  padding:16px 0; font-weight:700; letter-spacing:.12em; font-size:.92rem;
+  color:#fff; cursor:pointer; font-family:inherit;
+  background:linear-gradient(135deg,#c81e2e,#7a0f1c);
+  box-shadow:0 10px 22px rgba(140,10,25,.35);
+  -webkit-tap-highlight-color:transparent;
+}
+.welcome-btn:active{ transform:scale(0.98); }
+
+
 .loading{
   position:fixed; inset:0; z-index:100;
   background:radial-gradient(ellipse at 50% 40%, #0c1130 0%, #05071a 70%);
@@ -83,22 +127,38 @@ html,body{
 
 /* spinning "planet" loader: a glowing sphere with a tilted ring, both
    continuously rotating, standing in for the heart-planet the site is
-   building */
+   building.
+   IMPORTANT: the spinning "surface" uses a REPEATING pattern translated by
+   exactly one repeat-unit per loop — that's what makes it loop seamlessly.
+   (Sliding a single non-repeating gradient and snapping back to 0% at the
+   end of the loop is what caused the visible "stutter/restart" before.) */
 .loading-planet{
   position:relative; width:76px; height:76px; margin-bottom:4px;
   transform-style:preserve-3d;
 }
 .lp-sphere{
   position:absolute; inset:6px; border-radius:50%;
-  background:
-    radial-gradient(circle at 32% 28%, #ff9a7a 0%, #e2381f 30%, #7a0d10 68%, #350407 100%);
-  background-size:220% 100%;
+  overflow:hidden;
   box-shadow:0 0 24px 5px rgba(255,55,40,.5);
-  animation:lpSpinSurface 3s linear infinite;
+  background:#5c0a10; /* fallback under the stripes */
 }
-@keyframes lpSpinSurface{
-  0%{ background-position:0% 0%; }
-  100%{ background-position:-220% 0%; }
+.lp-stripes{
+  position:absolute; top:-15%; left:-60%; width:280%; height:130%;
+  background:repeating-linear-gradient(90deg,
+    #5c0a10 0px, #7a0d10 12px, #b0121f 24px, #e2381f 36px, #b0121f 48px, #7a0d10 60px, #5c0a10 72px);
+  animation:lpStripeScroll 1.5s linear infinite;
+  will-change:transform;
+}
+@keyframes lpStripeScroll{
+  from{ transform:translateX(0); }
+  to{ transform:translateX(-72px); } /* exactly one repeat unit = no visible seam */
+}
+.lp-shade{
+  position:absolute; inset:0; border-radius:50%;
+  background:
+    radial-gradient(circle at 30% 26%, rgba(255,255,255,.4), transparent 42%),
+    radial-gradient(circle at 70% 80%, rgba(0,0,0,.55), transparent 60%);
+  pointer-events:none;
 }
 .lp-ring{
   position:absolute; left:50%; top:50%; width:168%; height:168%;
@@ -107,7 +167,8 @@ html,body{
   border:2px solid rgba(255,255,255,.5);
   box-shadow:0 0 12px rgba(255,255,255,.25);
   transform:rotateX(78deg) rotate(0deg);
-  animation:lpRingSpin 2.4s linear infinite;
+  animation:lpRingSpin 1.5s linear infinite;
+  will-change:transform;
 }
 .lp-ring-front{ z-index:2; }
 .lp-sphere{ z-index:1; }
