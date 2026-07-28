@@ -1,10 +1,9 @@
 // ============================================================
 // ONLY FOR U — dunia kecil 3D berisi kenangan
 // ------------------------------------------------------------
-// GANTI DI SINI kalau mau ubah nama / teks judul:
-const RECIPIENT_NAME = "Kakaa Piaaa";
-const TITLE_TEXT = `Only For U, ${RECIPIENT_NAME}`;
-// Jumlah foto yang dipakai (mengambil assets/photos/1.png .. N.png)
+// GANTI DI SINI kalau mau ubah teks judul (bisa dibaca dari depan & belakang):
+const TITLE_TEXT = "Only For U, Kakaaa Piaaaaa🤍";
+// Jumlah foto sumber yang dipakai (assets/photos/1.png .. N.png)
 const PHOTO_COUNT = 10;
 // ============================================================
 
@@ -15,6 +14,74 @@ const canvas = document.getElementById('scene');
 const loadingEl = document.getElementById('loading');
 const loadingFill = document.getElementById('loadingFill');
 const hintEl = document.getElementById('hint');
+const gateEl = document.getElementById('gate');
+const gateYesBtn = document.getElementById('gateYes');
+const gateNoBtn = document.getElementById('gateNo');
+const gateTauntEl = document.getElementById('gateTaunt');
+
+// ============================================================
+// GATE / GERBANG — "mau lihat cewe tercantik di dunia gak?"
+// the "no" button dodges away so it can never actually be pressed.
+// ============================================================
+const TAUNTS = [
+  'eh kok gabisa yaa 😆',
+  'coba lagi deh~ 😝',
+  'ga akan ketekan itu 🙈',
+  'yaudah pencet yang satunya aja 😌',
+  'gagal lagi hehe 😜',
+];
+
+function moveNoButtonAwayFrom(clientX, clientY) {
+  const btn = gateNoBtn;
+  if (btn.style.position !== 'fixed') {
+    const r = btn.getBoundingClientRect();
+    btn.style.position = 'fixed';
+    btn.style.left = r.left + 'px';
+    btn.style.top = r.top + 'px';
+    btn.style.margin = '0';
+    btn.style.zIndex = '5';
+  }
+  requestAnimationFrame(() => {
+    const w = btn.offsetWidth, h = btn.offsetHeight;
+    const pad = 20;
+    const maxX = Math.max(pad, window.innerWidth - w - pad);
+    const maxY = Math.max(pad, window.innerHeight - h - pad);
+    let x, y, tries = 0;
+    do {
+      x = pad + Math.random() * (maxX - pad);
+      y = pad + Math.random() * (maxY - pad);
+      tries++;
+    } while (clientX != null && Math.hypot(x - clientX, y - clientY) < 120 && tries < 8);
+    btn.style.left = x + 'px';
+    btn.style.top = y + 'px';
+  });
+  gateTauntEl.textContent = TAUNTS[Math.floor(Math.random() * TAUNTS.length)];
+}
+
+gateNoBtn.addEventListener('pointerenter', (e) => moveNoButtonAwayFrom(e.clientX, e.clientY));
+gateNoBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); moveNoButtonAwayFrom(e.clientX, e.clientY); });
+gateNoBtn.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  moveNoButtonAwayFrom(t ? t.clientX : null, t ? t.clientY : null);
+}, { passive: false });
+// also dodge a bit before the pointer even reaches it, on desktop
+document.addEventListener('pointermove', (e) => {
+  if (gateEl.classList.contains('hide')) return;
+  const r = gateNoBtn.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  if (Math.hypot(e.clientX - cx, e.clientY - cy) < 70) {
+    moveNoButtonAwayFrom(e.clientX, e.clientY);
+  }
+});
+
+let gateDismissed = false;
+gateYesBtn.addEventListener('click', () => {
+  if (gateDismissed) return;
+  gateDismissed = true;
+  gateEl.classList.add('hide');
+  startLoadingSequence();
+});
 
 // ---------- renderer / scene / camera ----------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
@@ -47,7 +114,7 @@ controls.target.set(0, 2, 0);
 const world = new THREE.Group();
 scene.add(world);
 
-// ---------- soft circular sprite texture (fixes hard pixel/square dots) ----------
+// ---------- soft circular sprite texture (keeps particles round, not blocky) ----------
 function makeDotTexture() {
   const size = 128;
   const c = document.createElement('canvas');
@@ -89,31 +156,41 @@ const starsNear = makeStars(2200, 90, 220, 1.5, 0xffffff, 0.9);
 const starsFar = makeStars(3500, 220, 420, 2.0, 0xaab4ff, 0.6);
 scene.add(starsNear, starsFar);
 
-// ---------- round particle planet (red/orange "sun-like" core) ----------
+// ---------- heart-shaped particle planet — dense, deep red ("merah pekat") ----------
+function heartPoint(t) {
+  const x = 16 * Math.pow(Math.sin(t), 3);
+  const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+  return { x, y };
+}
+
 function buildPlanet() {
-  const COUNT = 14000;
-  const RADIUS = 9.5;
+  const COUNT = 15000;
   const positions = new Float32Array(COUNT * 3);
   const colors = new Float32Array(COUNT * 3);
-  const deep = new THREE.Color(0x5c0a10);
-  const mid = new THREE.Color(0xd8391f);
-  const hot = new THREE.Color(0xffb15a);
+  // dense/solid red palette — kept in the red family only (no orange/yellow)
+  // so the planet reads as "merah pekat" rather than a glowing sun.
+  const deep = new THREE.Color(0x40000a);
+  const mid = new THREE.Color(0x9c0f18);
+  const bright = new THREE.Color(0xe23244);
 
+  const SCALE = 0.62;
   for (let i = 0; i < COUNT; i++) {
-    // uniform-ish fill of a sphere, with a fuzzy/noisy surface
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    const s = Math.cbrt(Math.random()); // 0 (core) -> 1 (surface)
-    const noise = 0.9 + Math.random() * 0.14; // fuzzy edge, not a perfect sphere
-    const r = RADIUS * s * noise;
+    const t = Math.random() * Math.PI * 2;
+    const { x: bx, y: by } = heartPoint(t);
+    const s = Math.cbrt(Math.random()); // 0 core -> 1 surface, volume-filled
+    const depth = Math.sqrt(Math.max(0, 1 - s * s)) * 8 * (0.45 + Math.random() * 0.55);
 
-    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.cos(phi);
-    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    const x = bx * s * SCALE;
+    const y = (by + 4) * s * SCALE;
+    const z = (Math.random() - 0.5) * depth * SCALE;
+
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
 
     const c = new THREE.Color();
-    if (s > 0.86) c.copy(hot); else if (s > 0.4) c.copy(mid); else c.copy(deep);
-    c.offsetHSL((Math.random() - 0.5) * 0.02, 0, (Math.random() - 0.5) * 0.05);
+    if (s > 0.88) c.copy(bright); else if (s > 0.4) c.copy(mid); else c.copy(deep);
+    c.offsetHSL((Math.random() - 0.5) * 0.015, 0, (Math.random() - 0.5) * 0.04);
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
   }
 
@@ -121,8 +198,8 @@ function buildPlanet() {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mat = new THREE.PointsMaterial({
-    size: 0.5, vertexColors: true, transparent: true, opacity: 0.95,
-    depthWrite: false, blending: THREE.AdditiveBlending, map: dotTexture,
+    size: 0.46, vertexColors: true, transparent: true, opacity: 0.97,
+    depthWrite: false, blending: THREE.NormalBlending, map: dotTexture,
   });
   const points = new THREE.Points(geo, mat);
   points.position.y = 1.5;
@@ -132,7 +209,7 @@ function buildPlanet() {
 const planet = buildPlanet();
 world.add(planet);
 
-// ---------- ring / disc of pale particles around the heart ----------
+// ---------- ring / disc of pale particles around the planet ----------
 function buildRing() {
   const COUNT = 7000;
   const rInner = 12.5, rOuter = 25;
@@ -168,18 +245,23 @@ function buildRing() {
 const ring = buildRing();
 world.add(ring);
 
-// ---------- floating photo "polaroid cubes" ----------
+// ---------- floating photo cards (9:16, portrait, small) ----------
 const manager = new THREE.LoadingManager();
-manager.onProgress = () => {}; // progress bar is time-driven below instead (assets load almost instantly)
 manager.onError = (url) => console.warn('Gagal memuat:', url);
+// Attach onLoad right away (not later, on the gate button click) — otherwise
+// if these tiny textures finish loading while the user is still deciding on
+// the gate screen, the completion event would fire with no listener attached
+// and get missed entirely, leaving the loading screen stuck on the safety net.
+let assetsLoaded = false;
+manager.onLoad = () => { assetsLoaded = true; requestHideLoading(); };
 
 const texLoader = new THREE.TextureLoader(manager);
 const whiteMat = new THREE.MeshBasicMaterial({ color: 0xf5f3ee });
 
 // Preload each of the 10 source photos ONCE and reuse the texture object
-// across many small floating cubes — this is how we get "banyak foto"
+// across many small floating cards — this is how we get "banyak foto"
 // (lots of photos on screen, grouped in clusters) without re-downloading
-// or re-decoding the same image over and over.
+// the same image over and over.
 const photoTextures = [];
 for (let i = 1; i <= PHOTO_COUNT; i++) {
   const tex = texLoader.load(`assets/photos/${i}.png`);
@@ -190,11 +272,10 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
 const photoGroup = new THREE.Group();
 const floaters = [];
 
-// How many floating photo-cubes to scatter in total, and how many
-// "clusters" (little groups of photos near each other, like the examples
-// you gave: 1,5,2,9 in one spot / 2,3,4,7 in another / 1,7,2,8 elsewhere).
-// This is intentionally MORE than PHOTO_COUNT — the same 10 source photos
-// get reused/randomized across many small floating cards.
+// How many floating photo-cards to scatter in total, and how many
+// "clusters" (little groups of photos near each other). This is
+// intentionally MORE than PHOTO_COUNT — the same 10 source photos get
+// reused/randomized across many small floating cards.
 const FLOATER_COUNT = 24;
 const CLUSTER_COUNT = 7;
 
@@ -204,17 +285,24 @@ const clusters = Array.from({ length: CLUSTER_COUNT }, () => ({
   baseY: (Math.random() - 0.5) * 7,
 }));
 
+// 9:16 portrait card — width:height = 9:16
+const CARD_W = 1;
+const CARD_H = CARD_W * (16 / 9);
+
 for (let i = 0; i < FLOATER_COUNT; i++) {
   const cluster = clusters[i % CLUSTER_COUNT];
   const photoIdx = Math.floor(Math.random() * PHOTO_COUNT);
   const photoMat = new THREE.MeshBasicMaterial({ map: photoTextures[photoIdx] });
 
-  // small cards — kept deliberately modest so they don't dominate the scene
-  const size = 1.0 + Math.random() * 0.6;
-  const depth = size * 0.16;
+  // small scale factor so cards stay modest in size
+  const scale = 1.05 + Math.random() * 0.55;
+  const w = CARD_W * scale;
+  const h = CARD_H * scale;
+  const depth = w * 0.14;
+
   // Box faces order: +x,-x,+y,-y,+z,-z
   const materials = [whiteMat, whiteMat, whiteMat, whiteMat, photoMat, whiteMat];
-  const geo = new THREE.BoxGeometry(size, size, depth);
+  const geo = new THREE.BoxGeometry(w, h, depth);
   const cube = new THREE.Mesh(geo, materials);
 
   const angle = cluster.angle + (Math.random() - 0.5) * 0.6;
@@ -241,30 +329,48 @@ for (let i = 0; i < FLOATER_COUNT; i++) {
 }
 world.add(photoGroup);
 
-// ---------- title text sprite (part of rotating world, like the reference) ----------
-function buildTitle(text) {
+// ---------- title text — readable from BOTH front and back ----------
+// A single plane rotated 180° would show the SAME texture mirrored from
+// behind. To make it read correctly from both sides we build two planes
+// back-to-back, where the back one has its canvas text drawn pre-mirrored
+// so the geometric flip un-mirrors it again.
+function buildTitleCanvas(text, mirrored) {
   const canvasEl = document.createElement('canvas');
-  const W = 1600, H = 300;
+  const W = 1800, H = 320;
   canvasEl.width = W; canvasEl.height = H;
   const ctx = canvasEl.getContext('2d');
   ctx.clearRect(0, 0, W, H);
+  if (mirrored) { ctx.translate(W, 0); ctx.scale(-1, 1); }
   ctx.fillStyle = '#f4f1ff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "italic 500 108px 'Playfair Display', Georgia, serif";
+  ctx.font = "italic 500 96px 'Playfair Display', Georgia, serif";
   ctx.shadowColor = 'rgba(255,255,255,0.35)';
   ctx.shadowBlur = 18;
   ctx.fillText(text, W / 2, H / 2);
-
   const tex = new THREE.CanvasTexture(canvasEl);
   tex.needsUpdate = true;
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
-  const aspect = W / H;
+  return { tex, aspect: W / H };
+}
+
+function buildTitle(text) {
+  const group = new THREE.Group();
   const height = 4.6;
-  const geo = new THREE.PlaneGeometry(height * aspect, height);
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(0, 15.5, 0);
-  return mesh;
+
+  const front = buildTitleCanvas(text, false);
+  const frontMat = new THREE.MeshBasicMaterial({ map: front.tex, transparent: true, depthWrite: false });
+  const frontMesh = new THREE.Mesh(new THREE.PlaneGeometry(height * front.aspect, height), frontMat);
+  frontMesh.position.z = 0.02;
+
+  const back = buildTitleCanvas(text, true);
+  const backMat = new THREE.MeshBasicMaterial({ map: back.tex, transparent: true, depthWrite: false });
+  const backMesh = new THREE.Mesh(new THREE.PlaneGeometry(height * back.aspect, height), backMat);
+  backMesh.rotation.y = Math.PI;
+  backMesh.position.z = -0.02;
+
+  group.add(frontMesh, backMesh);
+  group.position.set(0, 15.5, 0);
+  return group;
 }
 
 let titleMesh = null;
@@ -272,7 +378,7 @@ document.fonts && document.fonts.ready
   ? document.fonts.ready.then(() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })
   : (() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })();
 
-// ---------- cinematic intro animation ----------
+// ---------- cinematic intro animation (camera dolly + planet "pop") ----------
 const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
 const easeOutBack = (x) => {
   const c1 = 1.70158, c3 = c1 + 1;
@@ -304,14 +410,17 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ---------- loading screen out ----------
-// Assets here are tiny, so they can finish loading in well under a second —
-// which made the loading screen flash by almost instantly. We enforce a
-// minimum time on screen (~4s) so it doesn't feel abrupt.
-const PAGE_LOAD_START = performance.now();
+// ============================================================
+// LOADING SEQUENCE — only starts once the gate has been dismissed with
+// "mauuu😍". Kept on screen for a guaranteed minimum time (~4s) so the
+// spinning-planet loading animation actually gets seen, regardless of how
+// fast the (tiny) photo assets finish downloading.
+// ============================================================
 const MIN_LOADING_MS = 4000;
-
+let PAGE_LOAD_START = null;
+let loadingSequenceStarted = false;
 let hidden = false;
+
 function hideLoading() {
   if (hidden) return;
   hidden = true;
@@ -322,21 +431,31 @@ function hideLoading() {
     setTimeout(() => { hintEl.classList.remove('show'); }, 4200);
   }, INTRO_DUR * 1000 * 0.6);
 }
+
 function requestHideLoading() {
+  if (!loadingSequenceStarted) return; // gate not dismissed yet — ignore for now
   const elapsed = performance.now() - PAGE_LOAD_START;
   const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
   setTimeout(hideLoading, remaining);
 }
-manager.onLoad = requestHideLoading;
-// safety net in case something never fires onLoad (e.g. a missing photo file)
-setTimeout(hideLoading, MIN_LOADING_MS + 2500);
 
-(function tickLoadingBar() {
-  const elapsed = performance.now() - PAGE_LOAD_START;
-  const pct = Math.min(100, (elapsed / MIN_LOADING_MS) * 100);
-  loadingFill.style.width = pct + '%';
-  if (!hidden) requestAnimationFrame(tickLoadingBar);
-})();
+function startLoadingSequence() {
+  loadingSequenceStarted = true;
+  PAGE_LOAD_START = performance.now();
+  // safety net in case something never fires onLoad (e.g. a missing photo file)
+  setTimeout(hideLoading, MIN_LOADING_MS + 2500);
+  // if the (tiny) textures already finished loading while the gate was up,
+  // kick the countdown off immediately instead of waiting on an event that
+  // already fired in the past
+  if (assetsLoaded) requestHideLoading();
+
+  (function tickLoadingBar() {
+    const elapsed = performance.now() - PAGE_LOAD_START;
+    const pct = Math.min(100, (elapsed / MIN_LOADING_MS) * 100);
+    loadingFill.style.width = pct + '%';
+    if (!hidden) requestAnimationFrame(tickLoadingBar);
+  })();
+}
 
 // ---------- animation loop ----------
 const clock = new THREE.Clock();

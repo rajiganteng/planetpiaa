@@ -1,5 +1,3 @@
-@font-face-fallback { }
-
 :root{
   --navy:#050818;
   --ink:#f4f1ff;
@@ -21,6 +19,57 @@ html,body{
   touch-action:none;
 }
 
+/* ================= gate / gerbang ================= */
+.gate{
+  position:fixed; inset:0; z-index:200;
+  background:radial-gradient(ellipse at 50% 35%, #1b0e26 0%, #05050c 75%);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:26px; padding:24px; text-align:center;
+  transition:opacity .6s ease, visibility .6s ease;
+}
+.gate.hide{ opacity:0; visibility:hidden; pointer-events:none; }
+
+.gate-question{
+  font-family:'Playfair Display', Georgia, serif; font-style:italic;
+  font-size:clamp(1.35rem, 6vw, 2.1rem); line-height:1.35;
+  color:var(--ink); max-width:22ch; margin:0;
+  text-shadow:0 0 22px rgba(255,255,255,.18);
+}
+
+.gate-buttons{
+  position:relative;
+  display:flex; gap:16px; flex-wrap:wrap; justify-content:center;
+  width:100%; max-width:420px; min-height:60px;
+}
+
+.gate-btn{
+  font-size:1.02rem; padding:15px 28px; border-radius:999px; border:none;
+  cursor:pointer; font-weight:700; font-family:inherit;
+  -webkit-tap-highlight-color:transparent;
+}
+
+.gate-yes{
+  background:linear-gradient(135deg,#ff7a7a,#ff3b3b);
+  color:#fff;
+  box-shadow:0 10px 26px rgba(255,59,59,.45);
+  animation:gateYesPulse 1.7s ease-in-out infinite;
+}
+@keyframes gateYesPulse{
+  0%,100%{ transform:scale(1); }
+  50%{ transform:scale(1.06); }
+}
+
+.gate-no{
+  background:rgba(255,255,255,.08);
+  color:#cfcbe0;
+  border:1px solid rgba(255,255,255,.18);
+  transition:left .22s cubic-bezier(.34,1.56,.64,1), top .22s cubic-bezier(.34,1.56,.64,1);
+}
+
+.gate-taunt{
+  min-height:18px; font-size:.8rem; color:var(--muted); margin:0;
+}
+
 /* ================= loading screen ================= */
 .loading{
   position:fixed; inset:0; z-index:100;
@@ -28,17 +77,43 @@ html,body{
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:16px; color:var(--ink);
   transition:opacity .8s ease, visibility .8s ease;
+  perspective:500px;
 }
 .loading.hide{ opacity:0; visibility:hidden; pointer-events:none; }
 
-.loading-icon{
-  color:var(--rose);
-  animation:pulse 1.4s ease-in-out infinite;
-  filter:drop-shadow(0 0 12px rgba(255,59,59,.6));
+/* spinning "planet" loader: a glowing sphere with a tilted ring, both
+   continuously rotating, standing in for the heart-planet the site is
+   building */
+.loading-planet{
+  position:relative; width:76px; height:76px; margin-bottom:4px;
+  transform-style:preserve-3d;
 }
-@keyframes pulse{
-  0%,100%{ transform:scale(1); opacity:1; }
-  50%{ transform:scale(1.15); opacity:.75; }
+.lp-sphere{
+  position:absolute; inset:6px; border-radius:50%;
+  background:
+    radial-gradient(circle at 32% 28%, #ff9a7a 0%, #e2381f 30%, #7a0d10 68%, #350407 100%);
+  background-size:220% 100%;
+  box-shadow:0 0 24px 5px rgba(255,55,40,.5);
+  animation:lpSpinSurface 3s linear infinite;
+}
+@keyframes lpSpinSurface{
+  0%{ background-position:0% 0%; }
+  100%{ background-position:-220% 0%; }
+}
+.lp-ring{
+  position:absolute; left:50%; top:50%; width:168%; height:168%;
+  margin-left:-84%; margin-top:-84%;
+  border-radius:50%;
+  border:2px solid rgba(255,255,255,.5);
+  box-shadow:0 0 12px rgba(255,255,255,.25);
+  transform:rotateX(78deg) rotate(0deg);
+  animation:lpRingSpin 2.4s linear infinite;
+}
+.lp-ring-front{ z-index:2; }
+.lp-sphere{ z-index:1; }
+@keyframes lpRingSpin{
+  0%{ transform:rotateX(78deg) rotate(0deg); }
+  100%{ transform:rotateX(78deg) rotate(360deg); }
 }
 
 .loading-title{
@@ -71,5 +146,5 @@ html,body{
 .ui-hint.show{ opacity:.8; }
 
 @media (max-width:480px){
-  .loading-icon svg{ width:36px; height:36px; }
+  .loading-planet{ width:64px; height:64px; }
 }

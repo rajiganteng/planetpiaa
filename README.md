@@ -1,6 +1,11 @@
 # Only For U — Website 3D "Planet Cinta"
 
-Website 3D interaktif: partikel berbentuk hati merah yang dikelilingi "cincin" partikel putih (seperti Saturnus), dengan 10 foto melayang sebagai kubus polaroid kecil di sekelilingnya, dengan latar bintang. Bisa digeser/diputar dengan jari atau mouse. Dibuat dengan Three.js murni (tanpa build tools).
+Alurnya sekarang 3 tahap:
+1. **Gerbang** — pertanyaan "Mau lihat cewe tercantik di dunia gak?" dengan tombol "mauuu😍" dan "gakkk mw lahh😒" (tombol ini sengaja kabur terus, gak akan bisa dipencet).
+2. **Loading** — animasi mini planet berputar (~4 detik).
+3. **Dunia utama** — partikel berbentuk hati merah pekat, dikelilingi "cincin" partikel putih (seperti Saturnus), dengan foto-foto kecil rasio 9:16 melayang mengelilinginya, dengan latar bintang. Bisa digeser/diputar & di-zoom dengan jari atau mouse.
+
+Dibuat dengan Three.js murni (tanpa build tools).
 
 ## Struktur folder
 
@@ -35,12 +40,16 @@ menjadi `.jpg` sesuai file Anda.
 
 Buka `main.js`, baris paling atas:
 ```js
-const RECIPIENT_NAME = "Kamu";
-const TITLE_TEXT = `Only For U, ${RECIPIENT_NAME}`;
+const TITLE_TEXT = "Only For U, Kakaaa Piaaaaa🤍";
 ```
-Ganti `"Kamu"` dengan nama yang Anda mau tampilkan, contoh:
-```js
-const RECIPIENT_NAME = "Ayu Anita Purnama";
+Ganti teksnya sesuai yang Anda mau. Teks ini otomatis dibuat bisa dibaca dari **depan maupun belakang** planet (dua sisi digambar terpisah), jadi tidak perlu edit apa pun lagi untuk itu.
+
+Kalau mau ganti pertanyaan/tombol di layar gerbang, cari di `index.html`:
+```html
+<p class="gate-question">Mau lihat cewe tercantik<br>di dunia gak?</p>
+...
+<button id="gateYes" ...>mauuu😍</button>
+<button id="gateNo" ...>gakkk mw lahh😒</button>
 ```
 
 ## 3. Coba di komputer sendiri
