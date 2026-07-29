@@ -130,8 +130,13 @@ bgm.addEventListener('timeupdate', () => {
 // flex flow would leave "mauuu😍" alone in the row and the browser would
 // re-center it, making it look like it moved.
 function pinGateButtons() {
-  [gateYesBtn, gateNoBtn].forEach((btn) => {
-    const r = btn.getBoundingClientRect();
+  // measure BOTH rects first, before touching any styles — if we pin one
+  // button then measure the next, the first pin already removed it from
+  // the flex flow, so the second button's measured position would be
+  // wrong (this was the cause of the two buttons ending up overlapping).
+  const rects = [gateYesBtn, gateNoBtn].map((btn) => btn.getBoundingClientRect());
+  [gateYesBtn, gateNoBtn].forEach((btn, i) => {
+    const r = rects[i];
     btn.style.position = 'fixed';
     btn.style.left = r.left + 'px';
     btn.style.top = r.top + 'px';
@@ -395,6 +400,14 @@ addTwinkle(ring, 1.1, 0.4);
 world.add(ring);
 
 // ---------- floating photo cards (9:16, portrait, small) ----------
+// PERFORMANCE NOTE: with 300+ cards, creating one THREE.Mesh per card (each
+// needing up to 6 draw calls for a multi-material box) got very slow —
+// hundreds/thousands of draw calls per frame. Instead we use ONE
+// THREE.InstancedMesh PER SOURCE PHOTO (so only PHOTO_COUNT = 10 draw calls
+// total, no matter how many cards there are), and move each card by
+// updating its instance matrix every frame. Cards are simple double-sided
+// planes (photo visible from front AND back) rather than boxes, which is
+// both cheaper and avoids the "blank white back" problem entirely.
 const manager = new THREE.LoadingManager();
 manager.onError = (url) => console.warn('Gagal memuat:', url);
 // Attach onLoad right away (not later, on the gate button click) — otherwise
@@ -405,21 +418,17 @@ let assetsLoaded = false;
 manager.onLoad = () => { assetsLoaded = true; requestHideLoading(); };
 
 const texLoader = new THREE.TextureLoader(manager);
-const whiteMat = new THREE.MeshBasicMaterial({ color: 0xf5f3ee });
 
 // Preload each of the 10 source photos ONCE and reuse the texture object
 // across many small floating cards — this is how we get "banyak foto"
-// (lots of photos on screen, grouped in clusters) without re-downloading
-// the same image over and over.
+// (lots of photos on screen) without re-downloading the same image over
+// and over.
 const photoTextures = [];
 for (let i = 1; i <= PHOTO_COUNT; i++) {
   const tex = texLoader.load(`assets/photos/${i}.png`);
   if ('colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace;
   photoTextures.push(tex);
 }
-
-const photoGroup = new THREE.Group();
-const floaters = [];
 
 // How many floating photo-cards to scatter in total. This is intentionally
 // MORE than PHOTO_COUNT — the same 10 source photos get reused/randomized
@@ -429,17 +438,37 @@ const floaters = [];
 // different radius/height (with jitter for an organic feel) instead of
 // random clusters — that guarantees the photos actually surround the whole
 // planet with no big empty gaps, instead of randomly clumping on one side.
-const FLOATER_COUNT = 110;
+//
+// IMPORTANT: these radii start well past the white particle ring's outer
+// edge (rOuter = 25 in buildRing above) — photos form their OWN layer
+// surrounding the white dots from further out, instead of sitting on top
+// of / overlapping them.
+const FLOATER_COUNT = 350;
 const RINGS = [
-  { radius: 14, ySpread: 2.2, yCenter: -1.2 },
-  { radius: 19, ySpread: 2.6, yCenter: 0 },
-  { radius: 24.5, ySpread: 3.2, yCenter: 1.4 },
+  { radius: 28, ySpread: 3, yCenter: -2 },
+  { radius: 34, ySpread: 3.6, yCenter: 0.5 },
+  { radius: 41, ySpread: 4.2, yCenter: 3 },
 ];
 const perRing = Math.ceil(FLOATER_COUNT / RINGS.length);
 
 // 9:16 portrait card — width:height = 9:16
 const CARD_W = 1;
 const CARD_H = CARD_W * (16 / 9);
+const cardGeometry = new THREE.PlaneGeometry(CARD_W, CARD_H);
+
+// one InstancedMesh per source photo
+const perPhotoCapacity = Math.ceil(FLOATER_COUNT / PHOTO_COUNT) + 1;
+const instancedMeshes = photoTextures.map((tex) => {
+  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+  const mesh = new THREE.InstancedMesh(cardGeometry, mat, perPhotoCapacity);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.count = 0; // grows as we assign cards below
+  world.add(mesh);
+  return mesh;
+});
+
+const floaters = []; // per-card animation state
+const dummy = new THREE.Object3D();
 
 let floaterIndex = 0;
 for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
@@ -448,20 +477,11 @@ for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
   const ringOffset = (ringIdx / RINGS.length) * Math.PI * 2 * 0.33;
 
   for (let k = 0; k < perRing && floaterIndex < FLOATER_COUNT; k++, floaterIndex++) {
-    const photoIdx = Math.floor(Math.random() * PHOTO_COUNT);
-    const photoMat = new THREE.MeshBasicMaterial({ map: photoTextures[photoIdx] });
+    const photoIdx = floaterIndex % PHOTO_COUNT; // even spread across the 10 textures
+    const mesh = instancedMeshes[photoIdx];
+    const instanceId = mesh.count++;
 
-    const scale = 1.0 + Math.random() * 0.5;
-    const w = CARD_W * scale;
-    const h = CARD_H * scale;
-    const depth = w * 0.14;
-
-    // Box faces order: +x,-x,+y,-y,+z,-z — show the photo on BOTH the front
-    // (+z) and back (-z) faces so the card reads as a photo from either side
-    // instead of a blank white back.
-    const materials = [whiteMat, whiteMat, whiteMat, whiteMat, photoMat, photoMat];
-    const geo = new THREE.BoxGeometry(w, h, depth);
-    const cube = new THREE.Mesh(geo, materials);
+    const scale = 0.8 + Math.random() * 0.4;
 
     // evenly spaced base angle within this ring + gentle jitter — this is
     // what guarantees full 360° coverage around the planet
@@ -470,20 +490,22 @@ for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
     const radius = ring.radius + (Math.random() - 0.5) * 3;
     const baseY = ring.yCenter + (Math.random() - 0.5) * ring.ySpread;
 
-    cube.position.set(Math.cos(angle) * radius, baseY, Math.sin(angle) * radius);
-
     // Face roughly outward/inward with only a SMALL random tilt — enough for
     // an organic, non-uniform look, but never enough to flip the card
     // upside down or edge-on (that's what read as "kebalik" before).
     const facingY = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.5;
     const tiltX = (Math.random() - 0.5) * 0.22;
     const tiltZ = (Math.random() - 0.5) * 0.18;
-    cube.rotation.set(tiltX, facingY, tiltZ);
 
-    cube.userData = {
+    const card = {
+      mesh, instanceId,
+      posX: Math.cos(angle) * radius,
+      posZ: Math.sin(angle) * radius,
+      scale,
       baseY,
       baseRotX: tiltX,
       baseRotZ: tiltZ,
+      curRotY: facingY,
       spinSpeed: 0.05 + Math.random() * 0.06, // slow, steady, upright-preserving spin
       phase: Math.random() * Math.PI * 2,
       bobSpeed: 0.4 + Math.random() * 0.5,
@@ -491,11 +513,16 @@ for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
       wobbleAmp: 0.06 + Math.random() * 0.05,
     };
 
-    photoGroup.add(cube);
-    floaters.push(cube);
+    dummy.position.set(card.posX, card.baseY, card.posZ);
+    dummy.rotation.set(card.baseRotX, card.curRotY, card.baseRotZ);
+    dummy.scale.setScalar(card.scale);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(instanceId, dummy.matrix);
+
+    floaters.push(card);
   }
 }
-world.add(photoGroup);
+instancedMeshes.forEach((m) => { m.instanceMatrix.needsUpdate = true; });
 
 // ---------- title text — always faces the camera (billboard) ----------
 // Stays positioned above the tumbling planet (it's still a child of
@@ -732,15 +759,21 @@ function animate() {
   starsNear.rotation.y = t * 0.01;
   starsFar.rotation.y = -t * 0.006;
 
-  for (const cube of floaters) {
-    const d = cube.userData;
-    cube.position.y = d.baseY + Math.sin(t * d.bobSpeed + d.phase) * d.bobAmp;
+  for (const card of floaters) {
+    const y = card.baseY + Math.sin(t * card.bobSpeed + card.phase) * card.bobAmp;
     // slow continuous spin around Y (never flips the card upside down),
     // plus a small gentle wobble on X/Z for organic life without tumbling
-    cube.rotation.y += d.spinSpeed * 0.016;
-    cube.rotation.x = d.baseRotX + Math.sin(t * 0.5 + d.phase) * d.wobbleAmp;
-    cube.rotation.z = d.baseRotZ + Math.cos(t * 0.4 + d.phase) * d.wobbleAmp;
+    card.curRotY += card.spinSpeed * 0.016;
+    const rx = card.baseRotX + Math.sin(t * 0.5 + card.phase) * card.wobbleAmp;
+    const rz = card.baseRotZ + Math.cos(t * 0.4 + card.phase) * card.wobbleAmp;
+
+    dummy.position.set(card.posX, y, card.posZ);
+    dummy.rotation.set(rx, card.curRotY, rz);
+    dummy.scale.setScalar(card.scale);
+    dummy.updateMatrix();
+    card.mesh.setMatrixAt(card.instanceId, dummy.matrix);
   }
+  for (const mesh of instancedMeshes) mesh.instanceMatrix.needsUpdate = true;
 
   for (const mat of twinkleMaterials) {
     if (mat.userData.shader) mat.userData.shader.uniforms.uTime.value = t;

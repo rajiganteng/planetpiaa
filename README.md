@@ -4,7 +4,9 @@ Alurnya sekarang 4 tahap:
 1. **Gerbang** — pertanyaan "Mau lihat cewe tercantik di dunia gak?" dengan tombol "mauuu😍" dan "gakkk mw lahh😒" (tombol nolak kabur + bunyi "womp"; posisi "mauuu😍" dijamin tidak ikut geser).
 2. **Loading** — animasi mini planet berputar (~4 detik, sudah mulus tanpa "restart" mendadak).
 3. **Kartu ucapan** — "a little space, made with love" dengan tombol GET IN.
-4. **Dunia utama** — kamera "terbang" berputar-putar mengelilingi planet selama ~10 detik pas masuk, dibarengi musik yang fade-in, lalu planet berbentuk hati merah pekat menetap dikelilingi cincin foto rasio 9:16 yang benar-benar melingkupi penuh 360°, judul yang selalu menghadap kamera, dan partikel yang berkelap-kelip pelan di tempat.
+4. **Dunia utama** — kamera "terbang" berputar-putar mengelilingi planet selama ~10 detik pas masuk, dibarengi musik yang fade-in, lalu planet berbentuk hati merah pekat menetap dikelilingi 3 lapis: **lapisan 1** planet hati, **lapisan 2** cincin partikel putih, **lapisan 3** (di luar cincin putih, tidak menumpuk) 350 foto rasio 9:16 yang melingkupi penuh 360°, judul yang selalu menghadap kamera, dan partikel yang berkelap-kelip pelan di tempat.
+
+> **Catatan performa:** 350 foto dirender pakai teknik *instancing* (cuma 10 "gambar ulang" per frame, satu per foto sumber, bukan 350) supaya tetap ringan. Kalau nanti kamu coba di HP dan terasa berat/patah-patah, kabari saya — saya bisa turunkan kepadatan partikel bintang/planetnya lebih lanjut.
 
 Dibuat dengan Three.js murni (tanpa build tools).
 
