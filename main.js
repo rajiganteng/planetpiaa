@@ -43,58 +43,84 @@ function getAudioCtx() {
     if (!AC) return null;
     audioCtx = new AC();
   }
-  if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
-function playDodgeSound() {
+// Runs `playFn(ctx)` once the context is actually running. Resuming a
+// suspended AudioContext is ASYNC — starting oscillators immediately after
+// calling .resume() without waiting for it to finish is one of the ways
+// these sound effects were intermittently going silent.
+function withRunningAudio(playFn) {
   const ctx = getAudioCtx();
   if (!ctx) return;
-  const now = ctx.currentTime;
-
-  const osc = ctx.createOscillator();
-  osc.type = 'triangle';
-  const gain = ctx.createGain();
-
-  // fast wobble (vibrato) layered on a falling pitch = comedic "boiiing"
-  const lfo = ctx.createOscillator();
-  lfo.type = 'sine';
-  lfo.frequency.setValueAtTime(32, now);
-  const lfoGain = ctx.createGain();
-  lfoGain.gain.setValueAtTime(70, now);
-  lfo.connect(lfoGain);
-  lfoGain.connect(osc.frequency);
-
-  osc.frequency.setValueAtTime(560, now);
-  osc.frequency.exponentialRampToValueAtTime(170, now + 0.34);
-
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.24, now + 0.025);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
-
-  osc.connect(gain).connect(ctx.destination);
-  lfo.start(now);
-  osc.start(now);
-  lfo.stop(now + 0.4);
-  osc.stop(now + 0.4);
+  if (ctx.state === 'running') playFn(ctx);
+  else ctx.resume().then(() => playFn(ctx)).catch(() => {});
 }
-function playYesSound() {
-  const ctx = getAudioCtx();
-  if (!ctx) return;
-  const now = ctx.currentTime;
-  // cheerful little ascending chime (major arpeggio)
-  const notes = [523.25, 659.25, 783.99, 1046.5];
-  notes.forEach((freq, i) => {
-    const t0 = now + i * 0.075;
+
+function playDodgeSound() {
+  withRunningAudio((ctx) => {
+    const now = ctx.currentTime;
+
     const osc = ctx.createOscillator();
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(freq, t0);
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(0.2, t0 + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.24);
+
+    // fast wobble (vibrato) layered on a falling pitch = comedic "boiiing"
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(32, now);
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.setValueAtTime(70, now);
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+
+    osc.frequency.setValueAtTime(560, now);
+    osc.frequency.exponentialRampToValueAtTime(170, now + 0.34);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.24, now + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+
     osc.connect(gain).connect(ctx.destination);
-    osc.start(t0);
-    osc.stop(t0 + 0.26);
+    lfo.start(now);
+    osc.start(now);
+    lfo.stop(now + 0.4);
+    osc.stop(now + 0.4);
+  });
+}
+
+function playYesSound() {
+  withRunningAudio((ctx) => {
+    const now = ctx.currentTime;
+
+    // soft little "pop" attack, like a bubble
+    const pop = ctx.createOscillator();
+    pop.type = 'sine';
+    pop.frequency.setValueAtTime(280, now);
+    pop.frequency.exponentialRampToValueAtTime(520, now + 0.07);
+    const popGain = ctx.createGain();
+    popGain.gain.setValueAtTime(0.0001, now);
+    popGain.gain.exponentialRampToValueAtTime(0.22, now + 0.02);
+    popGain.gain.exponentialRampToValueAtTime(0.0008, now + 0.1);
+    pop.connect(popGain).connect(ctx.destination);
+    pop.start(now);
+    pop.stop(now + 0.11);
+
+    // bright sparkly ascending "coin/ding" notes — like a little game
+    // pickup sound — spaced apart enough to stay crisp instead of blurring
+    const notes = [784.0, 987.77, 1318.5, 1567.98]; // G5, B5, E6, G6
+    notes.forEach((freq, i) => {
+      const t0 = now + 0.09 + i * 0.11;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.22, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.16);
+      osc.connect(g).connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.18);
+    });
   });
 }
 
@@ -196,7 +222,13 @@ window.addEventListener('resize', () => {
   }
 });
 
-function moveNoButtonAwayFrom(clientX, clientY) {
+let lastDodgeAt = 0;
+const DODGE_COOLDOWN_MS = 380;
+function moveNoButtonAwayFrom(clientX, clientY, playSound) {
+  const now = performance.now();
+  if (now - lastDodgeAt < DODGE_COOLDOWN_MS) return; // avoid spamming sound/movement
+  lastDodgeAt = now;
+
   const btn = gateNoBtn;
   requestAnimationFrame(() => {
     const w = btn.offsetWidth, h = btn.offsetHeight;
@@ -212,23 +244,30 @@ function moveNoButtonAwayFrom(clientX, clientY) {
     btn.style.left = x + 'px';
     btn.style.top = y + 'px';
   });
-  playDodgeSound();
+  // IMPORTANT: only play the sound when this dodge was triggered by a real
+  // press attempt (pointerdown/touchstart) — hover-ish events like
+  // pointerenter/pointermove are NOT treated as a "user gesture" by
+  // browsers, so trying to play audio from those intermittently gets
+  // silently blocked. Movement still happens either way; sound is reserved
+  // for genuine tap/click attempts so it's reliable every time.
+  if (playSound) playDodgeSound();
 }
 
-gateNoBtn.addEventListener('pointerenter', (e) => moveNoButtonAwayFrom(e.clientX, e.clientY));
-gateNoBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); moveNoButtonAwayFrom(e.clientX, e.clientY); });
+gateNoBtn.addEventListener('pointerenter', (e) => moveNoButtonAwayFrom(e.clientX, e.clientY, false));
+gateNoBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); moveNoButtonAwayFrom(e.clientX, e.clientY, true); });
 gateNoBtn.addEventListener('touchstart', (e) => {
   e.preventDefault();
   const t = e.touches[0];
-  moveNoButtonAwayFrom(t ? t.clientX : null, t ? t.clientY : null);
+  moveNoButtonAwayFrom(t ? t.clientX : null, t ? t.clientY : null, true);
 }, { passive: false });
-// also dodge a bit before the pointer even reaches it, on desktop
+// also dodge a bit before the pointer even reaches it, on desktop (silent —
+// see note above)
 document.addEventListener('pointermove', (e) => {
   if (gateEl.classList.contains('hide')) return;
   const r = gateNoBtn.getBoundingClientRect();
   const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
   if (Math.hypot(e.clientX - cx, e.clientY - cy) < 70) {
-    moveNoButtonAwayFrom(e.clientX, e.clientY);
+    moveNoButtonAwayFrom(e.clientX, e.clientY, false);
   }
 });
 
