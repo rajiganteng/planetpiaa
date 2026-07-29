@@ -32,8 +32,9 @@ const gateNoBtn = document.getElementById('gateNo');
 // ============================================================
 // GATE / GERBANG — "mau lihat cewe tercantik di dunia gak?"
 // the "no" button dodges away so it can never actually be pressed.
-// A little synthesized "womp" sound plays on each dodge instead of text
-// (no external audio file needed).
+// Little synthesized sound effects play on each button (no external audio
+// file needed): a springy comedic "boiiing" for the dodge, and a cheerful
+// little chime for "mauuu😍".
 // ============================================================
 let audioCtx = null;
 function getAudioCtx() {
@@ -49,16 +50,52 @@ function playDodgeSound() {
   const ctx = getAudioCtx();
   if (!ctx) return;
   const now = ctx.currentTime;
+
   const osc = ctx.createOscillator();
+  osc.type = 'triangle';
   const gain = ctx.createGain();
-  osc.type = 'sine';
+
+  // fast wobble (vibrato) layered on a falling pitch = comedic "boiiing"
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.setValueAtTime(32, now);
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.setValueAtTime(70, now);
+  lfo.connect(lfoGain);
+  lfoGain.connect(osc.frequency);
+
   osc.frequency.setValueAtTime(560, now);
-  osc.frequency.exponentialRampToValueAtTime(150, now + 0.26);
-  gain.gain.setValueAtTime(0.2, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+  osc.frequency.exponentialRampToValueAtTime(170, now + 0.34);
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.24, now + 0.025);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+
   osc.connect(gain).connect(ctx.destination);
+  lfo.start(now);
   osc.start(now);
-  osc.stop(now + 0.3);
+  lfo.stop(now + 0.4);
+  osc.stop(now + 0.4);
+}
+function playYesSound() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  // cheerful little ascending chime (major arpeggio)
+  const notes = [523.25, 659.25, 783.99, 1046.5];
+  notes.forEach((freq, i) => {
+    const t0 = now + i * 0.075;
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, t0);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.2, t0 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.24);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.26);
+  });
 }
 
 // ============================================================
@@ -199,6 +236,7 @@ let gateDismissed = false;
 gateYesBtn.addEventListener('click', () => {
   if (gateDismissed) return;
   gateDismissed = true;
+  playYesSound();
   unlockAudio();
   gateEl.classList.add('hide');
   startLoadingSequence();
@@ -443,7 +481,7 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
 // edge (rOuter = 25 in buildRing above) — photos form their OWN layer
 // surrounding the white dots from further out, instead of sitting on top
 // of / overlapping them.
-const FLOATER_COUNT = 350;
+const FLOATER_COUNT = 400;
 const RINGS = [
   { radius: 28, ySpread: 3, yCenter: -2 },
   { radius: 34, ySpread: 3.6, yCenter: 0.5 },
@@ -481,7 +519,7 @@ for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
     const mesh = instancedMeshes[photoIdx];
     const instanceId = mesh.count++;
 
-    const scale = 0.8 + Math.random() * 0.4;
+    const scale = 1.0 + Math.random() * 0.55;
 
     // evenly spaced base angle within this ring + gentle jitter — this is
     // what guarantees full 360° coverage around the planet
@@ -577,7 +615,7 @@ const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2
 const TARGET_FIXED = new THREE.Vector3(0, 2, 0);
 // intro runs exactly as long as it takes the music to go from AUDIO_START to
 // AUDIO_EPIC, so the flythrough finishes right as the "epic" part hits
-const INTRO_DUR = Math.max(3, AUDIO_EPIC - AUDIO_START);
+const INTRO_DUR = Math.max(3, AUDIO_EPIC - AUDIO_START) + 0.4;
 
 // describe the camera's resting position (where it ends up / where
 // OrbitControls takes over) in spherical terms around TARGET_FIXED
