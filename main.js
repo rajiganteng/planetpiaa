@@ -520,11 +520,14 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
 // edge (rOuter = 25 in buildRing above) — photos form their OWN layer
 // surrounding the white dots from further out, instead of sitting on top
 // of / overlapping them.
-const FLOATER_COUNT = 400;
+const FLOATER_COUNT = 1000;
 const RINGS = [
-  { radius: 28, ySpread: 3, yCenter: -2 },
-  { radius: 34, ySpread: 3.6, yCenter: 0.5 },
-  { radius: 41, ySpread: 4.2, yCenter: 3 },
+  { radius: 27, ySpread: 2.4, yCenter: -4 },
+  { radius: 31, ySpread: 2.6, yCenter: -2 },
+  { radius: 35, ySpread: 2.8, yCenter: 0 },
+  { radius: 39.5, ySpread: 3, yCenter: 2 },
+  { radius: 44, ySpread: 3.2, yCenter: 4 },
+  { radius: 49, ySpread: 3.4, yCenter: 6 },
 ];
 const perRing = Math.ceil(FLOATER_COUNT / RINGS.length);
 
@@ -558,7 +561,7 @@ for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
     const mesh = instancedMeshes[photoIdx];
     const instanceId = mesh.count++;
 
-    const scale = 1.0 + Math.random() * 0.55;
+    const scale = 1.05 + Math.random() * 0.6;
 
     // evenly spaced base angle within this ring + gentle jitter — this is
     // what guarantees full 360° coverage around the planet
@@ -672,15 +675,21 @@ function sphericalToPos(az, pol, r) {
 }
 
 // keyframes: [time fraction, azimuth, polar, radius]
-// swoop in from far away -> overshoot past the planet -> swing back out the
-// other side -> smaller second bounce -> settle at the resting spot
+// A much richer flythrough than a simple dolly-in: wide distant establishing
+// shot -> sweeping orbital descent (passing both above and slightly below
+// the ring) -> a close overshoot -> swings back out the OTHER side -> a
+// second close pass -> another swing-out -> small settling bounces -> rest.
 const FLY_KEYFRAMES = [
-  { t: 0.00, az: REST_AZIMUTH + 2.6, pol: REST_POLAR - 0.35, r: REST_RADIUS + 210 },
-  { t: 0.22, az: REST_AZIMUTH + 1.1, pol: REST_POLAR + 0.10, r: REST_RADIUS + 30 },
-  { t: 0.38, az: REST_AZIMUTH + 0.5, pol: REST_POLAR - 0.06, r: REST_RADIUS - 22 },   // overshoot closer
-  { t: 0.55, az: REST_AZIMUTH - 0.4, pol: REST_POLAR + 0.08, r: REST_RADIUS + 26 },   // bolak-balik: swing back out + other side
-  { t: 0.72, az: REST_AZIMUTH + 0.12, pol: REST_POLAR - 0.03, r: REST_RADIUS - 10 },  // smaller second bounce in
-  { t: 0.88, az: REST_AZIMUTH - 0.03, pol: REST_POLAR + 0.015, r: REST_RADIUS + 5 },
+  { t: 0.00, az: REST_AZIMUTH + 3.4, pol: REST_POLAR - 0.50, r: REST_RADIUS + 260 },
+  { t: 0.10, az: REST_AZIMUTH + 2.5, pol: REST_POLAR - 0.42, r: REST_RADIUS + 150 },
+  { t: 0.20, az: REST_AZIMUTH + 1.6, pol: REST_POLAR - 0.15, r: REST_RADIUS + 70 },
+  { t: 0.30, az: REST_AZIMUTH + 0.85, pol: REST_POLAR + 0.20, r: REST_RADIUS + 15 },  // dips slightly below for a moment
+  { t: 0.40, az: REST_AZIMUTH + 0.30, pol: REST_POLAR - 0.10, r: REST_RADIUS - 25 },  // close overshoot
+  { t: 0.50, az: REST_AZIMUTH - 0.50, pol: REST_POLAR + 0.25, r: REST_RADIUS + 35 },  // bolak-balik #1: swing out, other side
+  { t: 0.60, az: REST_AZIMUTH - 1.00, pol: REST_POLAR - 0.05, r: REST_RADIUS - 15 },  // second close pass
+  { t: 0.70, az: REST_AZIMUTH - 0.40, pol: REST_POLAR + 0.12, r: REST_RADIUS + 20 },  // bolak-balik #2: swing out again
+  { t: 0.80, az: REST_AZIMUTH + 0.15, pol: REST_POLAR - 0.04, r: REST_RADIUS - 8 },   // small third bounce in
+  { t: 0.90, az: REST_AZIMUTH - 0.04, pol: REST_POLAR + 0.02, r: REST_RADIUS + 5 },
   { t: 1.00, az: REST_AZIMUTH, pol: REST_POLAR, r: REST_RADIUS },
 ];
 
@@ -796,6 +805,12 @@ function animate() {
 
     const fly = sampleFlyPath(introP);
     camera.position.copy(sphericalToPos(fly.az, fly.pol, fly.r));
+
+    // subtle cinematic roll/bank through the busiest swooping section,
+    // easing back to a perfectly upright camera by the time it settles
+    const rollDecay = 1 - easeOutCubic(introP);
+    const roll = Math.sin(introP * Math.PI * 3.2) * 0.16 * rollDecay;
+    camera.up.set(Math.sin(roll), Math.cos(roll), 0);
     camera.lookAt(TARGET_FIXED);
 
     // the planet itself "pops" into being fairly quickly (first ~3s),
@@ -808,6 +823,7 @@ function animate() {
 
     if (introP >= 1) {
       introFinished = true;
+      camera.up.set(0, 1, 0);
       world.scale.setScalar(1);
       starsNear.material.opacity = STAR_NEAR_OP;
       starsFar.material.opacity = STAR_FAR_OP;
