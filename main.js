@@ -1,7 +1,7 @@
 
 const TITLE_TEXT = "Only For U, Kakaaa Piaaaaa🤍";
 
-const PHOTO_COUNT = 10;
+const PHOTO_COUNT = 20;
 
 const AUDIO_SRC = 'assets/audio/song.mp3';
 const AUDIO_START = 36;
@@ -52,20 +52,6 @@ function safePlay(el) {
 function playYesSound() { safePlay(yesSfx); }
 function playDodgeSound() { safePlay(noSfx); }
 function playLesgoSound() { safePlay(lesgoSfx); }
-
-let mediaUnlocked = false;
-function unlockAllMedia() {
-  if (mediaUnlocked) return;
-  mediaUnlocked = true;
-  [yesSfx, noSfx, lesgoSfx].forEach((el) => {
-    const p = el.play();
-    if (p && p.catch) p.catch(() => {});
-    el.pause();
-    try { el.currentTime = 0; } catch (e) {}
-  });
-}
-document.addEventListener('touchstart', unlockAllMedia, { once: true, capture: true, passive: true });
-document.addEventListener('pointerdown', unlockAllMedia, { once: true, capture: true });
 
 const bgm = new Audio(AUDIO_SRC);
 bgm.preload = 'auto';
@@ -223,7 +209,7 @@ controls.enableZoom = true;
 controls.zoomSpeed = 1.3;
 controls.rotateSpeed = 0.85;
 controls.minDistance = 16;
-controls.maxDistance = 500;
+controls.maxDistance = 265;
 controls.minPolarAngle = Math.PI * 0.12;
 controls.maxPolarAngle = Math.PI * 0.86;
 controls.autoRotate = false;
@@ -621,14 +607,19 @@ function hideLoading() {
   welcomeCardEl.classList.add('show');
 }
 
+const LESGO_DELAY_MS = 700;
 getInBtn.addEventListener('click', () => {
+  if (getInBtn.disabled) return;
+  getInBtn.disabled = true;
   playLesgoSound();
-  welcomeCardEl.classList.remove('show');
-  startIntro();
   setTimeout(() => {
-    hintEl.classList.add('show');
-    setTimeout(() => { hintEl.classList.remove('show'); }, 4200);
-  }, INTRO_DUR * 1000 * 0.95);
+    welcomeCardEl.classList.remove('show');
+    startIntro();
+    setTimeout(() => {
+      hintEl.classList.add('show');
+      setTimeout(() => { hintEl.classList.remove('show'); }, 4200);
+    }, INTRO_DUR * 1000 * 0.95);
+  }, LESGO_DELAY_MS);
 });
 
 function requestHideLoading() {
