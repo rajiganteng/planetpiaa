@@ -32,96 +32,38 @@ const gateNoBtn = document.getElementById('gateNo');
 // ============================================================
 // GATE / GERBANG — "mau lihat cewe tercantik di dunia gak?"
 // the "no" button dodges away so it can never actually be pressed.
-// Little synthesized sound effects play on each button (no external audio
-// file needed): a springy comedic "boiiing" for the dodge, and a cheerful
-// little chime for "mauuu😍".
+// Sound effects for both buttons are imported audio files (put your own
+// files at the paths below — see README).
 // ============================================================
-let audioCtx = null;
-function getAudioCtx() {
-  if (!audioCtx) {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return null;
-    audioCtx = new AC();
-  }
-  return audioCtx;
-}
-// Runs `playFn(ctx)` once the context is actually running. Resuming a
-// suspended AudioContext is ASYNC — starting oscillators immediately after
-// calling .resume() without waiting for it to finish is one of the ways
-// these sound effects were intermittently going silent.
-function withRunningAudio(playFn) {
-  const ctx = getAudioCtx();
-  if (!ctx) return;
-  if (ctx.state === 'running') playFn(ctx);
-  else ctx.resume().then(() => playFn(ctx)).catch(() => {});
+const YES_SOUND_SRC = 'assets/audio/yes-sfx.mp3';
+const NO_SOUND_SRC = 'assets/audio/no-sfx.mp3';
+
+const yesSfx = new Audio(YES_SOUND_SRC);
+yesSfx.preload = 'auto';
+yesSfx.addEventListener('error', () => {
+  console.warn('Sound effect tidak ditemukan/gagal dimuat:', YES_SOUND_SRC, '— letakkan file di', YES_SOUND_SRC);
+});
+
+const noSfx = new Audio(NO_SOUND_SRC);
+noSfx.preload = 'auto';
+noSfx.addEventListener('error', () => {
+  console.warn('Sound effect tidak ditemukan/gagal dimuat:', NO_SOUND_SRC, '— letakkan file di', NO_SOUND_SRC);
+});
+
+function playYesSound() {
+  try {
+    yesSfx.currentTime = 0;
+    const p = yesSfx.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) {}
 }
 
 function playDodgeSound() {
-  withRunningAudio((ctx) => {
-    const now = ctx.currentTime;
-
-    const osc = ctx.createOscillator();
-    osc.type = 'triangle';
-    const gain = ctx.createGain();
-
-    // fast wobble (vibrato) layered on a falling pitch = comedic "boiiing"
-    const lfo = ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.setValueAtTime(32, now);
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.setValueAtTime(70, now);
-    lfo.connect(lfoGain);
-    lfoGain.connect(osc.frequency);
-
-    osc.frequency.setValueAtTime(560, now);
-    osc.frequency.exponentialRampToValueAtTime(170, now + 0.34);
-
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.24, now + 0.025);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
-
-    osc.connect(gain).connect(ctx.destination);
-    lfo.start(now);
-    osc.start(now);
-    lfo.stop(now + 0.4);
-    osc.stop(now + 0.4);
-  });
-}
-
-function playYesSound() {
-  withRunningAudio((ctx) => {
-    const now = ctx.currentTime;
-
-    // soft little "pop" attack, like a bubble
-    const pop = ctx.createOscillator();
-    pop.type = 'sine';
-    pop.frequency.setValueAtTime(280, now);
-    pop.frequency.exponentialRampToValueAtTime(520, now + 0.07);
-    const popGain = ctx.createGain();
-    popGain.gain.setValueAtTime(0.0001, now);
-    popGain.gain.exponentialRampToValueAtTime(0.22, now + 0.02);
-    popGain.gain.exponentialRampToValueAtTime(0.0008, now + 0.1);
-    pop.connect(popGain).connect(ctx.destination);
-    pop.start(now);
-    pop.stop(now + 0.11);
-
-    // bright sparkly ascending "coin/ding" notes — like a little game
-    // pickup sound — spaced apart enough to stay crisp instead of blurring
-    const notes = [784.0, 987.77, 1318.5, 1567.98]; // G5, B5, E6, G6
-    notes.forEach((freq, i) => {
-      const t0 = now + 0.09 + i * 0.11;
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, t0);
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(0.22, t0 + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.16);
-      osc.connect(g).connect(ctx.destination);
-      osc.start(t0);
-      osc.stop(t0 + 0.18);
-    });
-  });
+  try {
+    noSfx.currentTime = 0;
+    const p = noSfx.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) {}
 }
 
 // ============================================================
@@ -224,9 +166,9 @@ window.addEventListener('resize', () => {
 
 let lastDodgeAt = 0;
 const DODGE_COOLDOWN_MS = 380;
-function moveNoButtonAwayFrom(clientX, clientY, playSound) {
+function moveNoButtonAwayFrom(clientX, clientY) {
   const now = performance.now();
-  if (now - lastDodgeAt < DODGE_COOLDOWN_MS) return; // avoid spamming sound/movement
+  if (now - lastDodgeAt < DODGE_COOLDOWN_MS) return; // avoid spamming movement
   lastDodgeAt = now;
 
   const btn = gateNoBtn;
@@ -244,22 +186,25 @@ function moveNoButtonAwayFrom(clientX, clientY, playSound) {
     btn.style.left = x + 'px';
     btn.style.top = y + 'px';
   });
-  // IMPORTANT: only play the sound when this dodge was triggered by a real
-  // press attempt (pointerdown/touchstart) — hover-ish events like
-  // pointerenter/pointermove are NOT treated as a "user gesture" by
-  // browsers, so trying to play audio from those intermittently gets
-  // silently blocked. Movement still happens either way; sound is reserved
-  // for genuine tap/click attempts so it's reliable every time.
-  if (playSound) playDodgeSound();
 }
 
-gateNoBtn.addEventListener('pointerenter', (e) => moveNoButtonAwayFrom(e.clientX, e.clientY, false));
-gateNoBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); moveNoButtonAwayFrom(e.clientX, e.clientY, true); });
+gateNoBtn.addEventListener('pointerenter', (e) => moveNoButtonAwayFrom(e.clientX, e.clientY));
+gateNoBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); moveNoButtonAwayFrom(e.clientX, e.clientY); });
 gateNoBtn.addEventListener('touchstart', (e) => {
   e.preventDefault();
   const t = e.touches[0];
-  moveNoButtonAwayFrom(t ? t.clientX : null, t ? t.clientY : null, true);
+  moveNoButtonAwayFrom(t ? t.clientX : null, t ? t.clientY : null);
 }, { passive: false });
+// The DODGE itself fires instantly on touchstart/pointerdown above (so it
+// can never actually be tapped). The SOUND is triggered separately here, on
+// 'click' — iOS Safari's audio-unlock policy only reliably recognizes
+// click/touchend as a valid gesture for creating/resuming an AudioContext;
+// touchstart/pointerdown were silently getting blocked, which is why the
+// dodge sound was missing entirely on iPhone before.
+gateNoBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  playDodgeSound();
+});
 // also dodge a bit before the pointer even reaches it, on desktop (silent —
 // see note above)
 document.addEventListener('pointermove', (e) => {
@@ -267,7 +212,7 @@ document.addEventListener('pointermove', (e) => {
   const r = gateNoBtn.getBoundingClientRect();
   const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
   if (Math.hypot(e.clientX - cx, e.clientY - cy) < 70) {
-    moveNoButtonAwayFrom(e.clientX, e.clientY, false);
+    moveNoButtonAwayFrom(e.clientX, e.clientY);
   }
 });
 
@@ -292,7 +237,7 @@ scene.background = new THREE.Color(0x050818);
 scene.fog = new THREE.FogExp2(0x050818, 0.0032);
 
 const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 16, 44);
+camera.position.set(0, 22, 62);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -301,8 +246,8 @@ controls.enablePan = false;
 controls.enableZoom = true;
 controls.zoomSpeed = 0.9;
 controls.rotateSpeed = 0.85;
-controls.minDistance = 15;
-controls.maxDistance = 100;
+controls.minDistance = 18;
+controls.maxDistance = 130;
 controls.minPolarAngle = Math.PI * 0.12;
 controls.maxPolarAngle = Math.PI * 0.86;
 controls.autoRotate = false;
@@ -334,25 +279,30 @@ const dotTexture = makeDotTexture();
 // size/brightness gently pulses per-particle) so the star/ring/planet dots
 // don't look flat and static ----------
 const twinkleMaterials = [];
-function addTwinkle(points, speed = 1.2, strength = 0.4) {
+function addTwinkle(points, speed = 1.2, strength = 0.6) {
   const geometry = points.geometry;
   const material = points.material;
   const count = geometry.attributes.position.count;
   const phases = new Float32Array(count);
-  for (let i = 0; i < count; i++) phases[i] = Math.random() * Math.PI * 2;
+  const speeds = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    phases[i] = Math.random() * Math.PI * 2;
+    speeds[i] = 0.6 + Math.random() * 0.9; // per-particle speed variation so they don't all pulse in lockstep
+  }
   geometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+  geometry.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = { value: 0 };
     shader.uniforms.uSpeed = { value: speed };
     shader.uniforms.uStrength = { value: strength };
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aPhase;\nuniform float uTime;\nuniform float uSpeed;\nuniform float uStrength;\nvarying float vTwinkle;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTwinkle = 1.0 - uStrength + uStrength * (0.5 + 0.5 * sin(uTime * uSpeed + aPhase * 6.2831852));')
-      .replace('gl_PointSize = size;', 'gl_PointSize = size * vTwinkle;');
+      .replace('#include <common>', '#include <common>\nattribute float aPhase;\nattribute float aSpeed;\nuniform float uTime;\nuniform float uSpeed;\nuniform float uStrength;\nvarying float vTwinkle;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTwinkle = 1.0 - uStrength + uStrength * (0.5 + 0.5 * sin(uTime * uSpeed * aSpeed + aPhase * 6.2831852));')
+      .replace('gl_PointSize = size;', 'gl_PointSize = size * (0.4 + 0.8 * vTwinkle);');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying float vTwinkle;')
-      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse, opacity * mix(0.55, 1.0, vTwinkle) );');
+      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse, opacity * mix(0.2, 1.0, vTwinkle) );');
     material.userData.shader = shader;
   };
   material.needsUpdate = true;
@@ -381,8 +331,8 @@ function makeStars(count, rMin, rMax, size, color, opacity) {
 
 const starsNear = makeStars(2200, 90, 220, 1.5, 0xffffff, 0.9);
 const starsFar = makeStars(3500, 220, 420, 2.0, 0xaab4ff, 0.6);
-addTwinkle(starsNear, 0.9, 0.5);
-addTwinkle(starsFar, 0.6, 0.45);
+addTwinkle(starsNear, 1.1, 0.75);
+addTwinkle(starsFar, 0.8, 0.7);
 scene.add(starsNear, starsFar);
 
 // ---------- heart-shaped particle planet — dense, deep red ("merah pekat") ----------
@@ -436,7 +386,7 @@ function buildPlanet() {
 }
 
 const planet = buildPlanet();
-addTwinkle(planet, 1.4, 0.35);
+addTwinkle(planet, 1.6, 0.5);
 world.add(planet);
 
 // ---------- ring / disc of pale particles around the planet ----------
@@ -473,7 +423,7 @@ function buildRing() {
 }
 
 const ring = buildRing();
-addTwinkle(ring, 1.1, 0.4);
+addTwinkle(ring, 1.3, 0.6);
 world.add(ring);
 
 // ---------- floating photo cards (9:16, portrait, small) ----------
@@ -520,14 +470,16 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
 // edge (rOuter = 25 in buildRing above) — photos form their OWN layer
 // surrounding the white dots from further out, instead of sitting on top
 // of / overlapping them.
-const FLOATER_COUNT = 1000;
+const FLOATER_COUNT = 2000;
 const RINGS = [
-  { radius: 27, ySpread: 2.4, yCenter: -4 },
-  { radius: 31, ySpread: 2.6, yCenter: -2 },
-  { radius: 35, ySpread: 2.8, yCenter: 0 },
-  { radius: 39.5, ySpread: 3, yCenter: 2 },
-  { radius: 44, ySpread: 3.2, yCenter: 4 },
-  { radius: 49, ySpread: 3.4, yCenter: 6 },
+  { radius: 27, ySpread: 2.2, yCenter: -6 },
+  { radius: 30, ySpread: 2.3, yCenter: -4 },
+  { radius: 33.5, ySpread: 2.5, yCenter: -2 },
+  { radius: 37, ySpread: 2.6, yCenter: 0 },
+  { radius: 40.5, ySpread: 2.8, yCenter: 2 },
+  { radius: 44, ySpread: 3, yCenter: 4 },
+  { radius: 48, ySpread: 3.2, yCenter: 6 },
+  { radius: 52, ySpread: 3.4, yCenter: 8 },
 ];
 const perRing = Math.ceil(FLOATER_COUNT / RINGS.length);
 
@@ -641,6 +593,60 @@ let titleMesh = null;
 document.fonts && document.fonts.ready
   ? document.fonts.ready.then(() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })
   : (() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })();
+
+// ---------- two rings of "LOPYUUU PIAAA" text encircling the planet ----------
+// Both sit as clean concentric circles beyond the outermost photo layer,
+// close to the equatorial plane, spinning slowly in OPPOSITE directions.
+// (They used to sit high above / low below the planet at very different
+// heights, which from most viewing angles visually crossed into an "X"
+// shape — keeping them both near the same height avoids that entirely.)
+function buildRingLabelTexture(text) {
+  const canvasEl = document.createElement('canvas');
+  const W = 900, H = 220;
+  canvasEl.width = W; canvasEl.height = H;
+  const ctx = canvasEl.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#ffd9de';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = "italic 700 84px 'Playfair Display', Georgia, serif";
+  ctx.shadowColor = 'rgba(255,70,90,0.65)';
+  ctx.shadowBlur = 22;
+  ctx.fillText(text, W / 2, H / 2);
+  const tex = new THREE.CanvasTexture(canvasEl);
+  tex.needsUpdate = true;
+  return { tex, aspect: W / H };
+}
+
+const textRingGroups = [];
+function buildTextRing(text, radius, yPos, count, spinDir) {
+  const { tex, aspect } = buildRingLabelTexture(text);
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const h = 2.6;
+  const w = h * aspect;
+  const group = new THREE.Group();
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    mesh.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+    mesh.rotation.y = angle + Math.PI / 2;
+    group.add(mesh);
+  }
+  group.position.y = yPos;
+  group.userData = { baseY: yPos, spinSpeed: spinDir * (0.07 + Math.random() * 0.03), phase: Math.random() * Math.PI * 2 };
+  textRingGroups.push(group);
+  return group;
+}
+
+document.fonts && document.fonts.ready
+  ? document.fonts.ready.then(() => {
+      world.add(buildTextRing('LOPYUUU PIAAA', 58, 1.5, 6, 1));
+      world.add(buildTextRing('LOPYUUU PIAAA', 64, -1.5, 5, -1));
+    })
+  : (() => {
+      world.add(buildTextRing('LOPYUUU PIAAA', 58, 1.5, 6, 1));
+      world.add(buildTextRing('LOPYUUU PIAAA', 64, -1.5, 5, -1));
+    })();
 
 // ---------- cinematic intro animation: multi-phase camera flythrough ----------
 // Instead of a single straight dolly-in, the camera swoops toward the planet
@@ -851,6 +857,11 @@ function animate() {
 
   starsNear.rotation.y = t * 0.01;
   starsFar.rotation.y = -t * 0.006;
+
+  for (const g of textRingGroups) {
+    g.rotation.y += g.userData.spinSpeed * 0.016;
+    g.position.y = g.userData.baseY + Math.sin(t * 0.35 + g.userData.phase) * 0.6;
+  }
 
   for (const card of floaters) {
     const y = card.baseY + Math.sin(t * card.bobSpeed + card.phase) * card.bobAmp;

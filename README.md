@@ -28,12 +28,14 @@ Dibuat dengan Three.js murni (tanpa build tools).
     │   ├── ...
     │   └── 10.png
     └── audio/
-        └── song.mp3
+        ├── song.mp3
+        ├── yes-sfx.mp3
+        └── no-sfx.mp3
 ```
 
-## 0. Ganti musik
+## 0. Ganti musik & sound effect
 
-Timpa `assets/audio/song.mp3` dengan lagu aslimu (nama file boleh beda, tinggal sesuaikan di `main.js`). Di bagian paling atas `main.js`:
+**Musik latar** — timpa `assets/audio/song.mp3` dengan lagu aslimu (nama file boleh beda, tinggal sesuaikan di `main.js`). Di bagian paling atas `main.js`:
 ```js
 const AUDIO_SRC = 'assets/audio/song.mp3';
 const AUDIO_START = 36;   // musik mulai diputar dari detik ke berapa di file lagu
@@ -45,6 +47,13 @@ const AUDIO_VOLUME = 0.85;
 - Durasi animasi kamera "terbang" otomatis mengikuti `AUDIO_EPIC - AUDIO_START` detik — jadi kalau kamu ganti angka ini, animasi intronya ikut menyesuaikan panjangnya.
 - File `song.mp3` yang ada sekarang cuma nada placeholder pendek — **wajib diganti** dengan lagu asli sebelum dipakai beneran.
 - Musik baru boleh diputar otomatis oleh browser kalau dipicu dari interaksi user — makanya di sini musik "dibuka kuncinya" tepat saat tombol "mauuu😍" dipencet, supaya nanti pas animasi mulai (beberapa detik kemudian) browser tetap mengizinkan diputar otomatis (termasuk di Safari iPhone yang biasanya ketat soal ini).
+
+**Sound effect tombol** — timpa 2 file ini dengan suara kamu sendiri (format mp3, nama file harus sama persis, atau ganti path-nya di `main.js`):
+```js
+const YES_SOUND_SRC = 'assets/audio/yes-sfx.mp3'; // bunyi saat pencet "mauuu😍"
+const NO_SOUND_SRC = 'assets/audio/no-sfx.mp3';   // bunyi saat coba pencet "gakkk mw lahh😒"
+```
+File yang ada sekarang cuma nada placeholder pendek — ganti dengan suara asli kamu.
 
 ## 1. Ganti foto
 
