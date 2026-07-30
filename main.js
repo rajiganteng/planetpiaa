@@ -298,51 +298,122 @@ function makeStars(count, rMin, rMax, size, color, opacity) {
 
 const starsNear = makeStars(2200, 90, 220, 1.5, 0xffffff, 0.9);
 const starsFar = makeStars(3500, 220, 420, 2.0, 0xaab4ff, 0.6);
-addTwinkle(starsNear, 1.1, 0.75);
-addTwinkle(starsFar, 0.8, 0.7);
+addTwinkle(starsNear, 1.3, 0.85);
+addTwinkle(starsFar, 1.0, 0.8);
 scene.add(starsNear, starsFar);
 
-function heartPoint(t) {
-  const x = 16 * Math.pow(Math.sin(t), 3);
-  const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-  return { x, y };
+function makeGlowSprite(colorHex, size, x, y, z, opacity) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  const col = new THREE.Color(colorHex);
+  const r = Math.round(col.r * 255), g = Math.round(col.g * 255), b = Math.round(col.b * 255);
+  grad.addColorStop(0, `rgba(${r},${g},${b},${opacity})`);
+  grad.addColorStop(0.5, `rgba(${r},${g},${b},${opacity * 0.35})`);
+  grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(size, size, 1);
+  sprite.position.set(x, y, z);
+  return sprite;
 }
+
+const nebulaColors = [0x9b3fe0, 0x3fd67a, 0xe0b23f, 0xe0563f, 0x3f7fe0, 0xd63f9b];
+const nebulaSprites = [];
+for (let i = 0; i < nebulaColors.length; i++) {
+  const angle = (i / nebulaColors.length) * Math.PI * 2 + Math.random() * 0.6;
+  const dist = 260 + Math.random() * 120;
+  const sprite = makeGlowSprite(
+    nebulaColors[i],
+    170 + Math.random() * 110,
+    Math.cos(angle) * dist,
+    (Math.random() - 0.5) * 180,
+    Math.sin(angle) * dist,
+    0.5 + Math.random() * 0.25
+  );
+  sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05 };
+  nebulaSprites.push(sprite);
+  scene.add(sprite);
+}
+
+const shootingStarGeo = new THREE.BufferGeometry();
+const SHOOTING_STAR_SEGMENTS = 24;
+shootingStarGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SHOOTING_STAR_SEGMENTS * 3), 3));
+const shootingStarMat = new THREE.LineBasicMaterial({
+  color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const shootingStarLine = new THREE.Line(shootingStarGeo, shootingStarMat);
+scene.add(shootingStarLine);
+
+const shootingStarHeadGeo = new THREE.BufferGeometry();
+shootingStarHeadGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
+const shootingStarHeadMat = new THREE.PointsMaterial({
+  color: 0xffffff, size: 3.2, map: dotTexture, transparent: true, opacity: 0,
+  blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const shootingStarHead = new THREE.Points(shootingStarHeadGeo, shootingStarHeadMat);
+scene.add(shootingStarHead);
+
+let shootingStar = null;
+function spawnShootingStar() {
+  const startAngle = Math.random() * Math.PI * 2;
+  const height = 60 + Math.random() * 90;
+  const dist = 180 + Math.random() * 100;
+  const start = new THREE.Vector3(Math.cos(startAngle) * dist, height, Math.sin(startAngle) * dist);
+  const dir = new THREE.Vector3(-Math.cos(startAngle) + (Math.random() - 0.5) * 0.6, -0.3 - Math.random() * 0.3, -Math.sin(startAngle) + (Math.random() - 0.5) * 0.6).normalize();
+  shootingStar = { start, dir, speed: 90 + Math.random() * 50, life: 0, dur: 1.1 + Math.random() * 0.5 };
+}
+let nextShootingStarAt = 4 + Math.random() * 5;
 
 function buildPlanet() {
   const COUNT = 20000;
   const positions = new Float32Array(COUNT * 3);
   const colors = new Float32Array(COUNT * 3);
 
-  const deep = new THREE.Color(0x40000a);
-  const mid = new THREE.Color(0x9c0f18);
-  const bright = new THREE.Color(0xe23244);
+  const deep = new THREE.Color(0x5a000d);
+  const mid = new THREE.Color(0xb8001f);
+  const bright = new THREE.Color(0xff2b46);
 
-  const SCALE = 0.62;
-  for (let i = 0; i < COUNT; i++) {
-    const t = Math.random() * Math.PI * 2;
-    const { x: bx, y: by } = heartPoint(t);
-    const s = Math.cbrt(Math.random());
-    const depth = Math.sqrt(Math.max(0, 1 - s * s)) * 8 * (0.45 + Math.random() * 0.55);
+  const SCALE = 8.6;
+  const BOUND_X = 1.35, BOUND_Y_TOP = 1.25, BOUND_Y_BOTTOM = 1.5;
 
-    const x = bx * s * SCALE;
-    const y = (by + 4) * s * SCALE;
-    const z = (Math.random() - 0.5) * depth * SCALE;
+  let filled = 0;
+  let guard = 0;
+  while (filled < COUNT && guard < COUNT * 40) {
+    guard++;
+    const x = (Math.random() * 2 - 1) * BOUND_X;
+    const yRaw = Math.random() * (BOUND_Y_TOP + BOUND_Y_BOTTOM) - BOUND_Y_BOTTOM;
+    const yImplicit = -yRaw; // implicit formula's "up" is our -y; flip so the cusp points down
+    const a = x * x + yImplicit * yImplicit - 1;
+    const inside = a * a * a - x * x * yImplicit * yImplicit * yImplicit <= 0;
+    if (!inside) continue;
 
-    positions[i * 3] = x;
-    positions[i * 3 + 1] = y;
-    positions[i * 3 + 2] = z;
+    const r = Math.sqrt(x * x + yRaw * yRaw) / BOUND_Y_BOTTOM;
+    const s = Math.min(1, r);
+    const localWidth = 1 - Math.min(1, Math.abs(yRaw) / BOUND_Y_BOTTOM) * 0.4;
+    const depth = (0.5 + Math.random() * 0.5) * 2.6 * localWidth;
+
+    const i = filled;
+    positions[i * 3] = x * SCALE;
+    positions[i * 3 + 1] = yRaw * SCALE;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * depth * SCALE * 0.34;
 
     const c = new THREE.Color();
-    if (s > 0.88) c.copy(bright); else if (s > 0.4) c.copy(mid); else c.copy(deep);
-    c.offsetHSL((Math.random() - 0.5) * 0.015, 0, (Math.random() - 0.5) * 0.04);
+    if (s > 0.82) c.copy(bright); else if (s > 0.35) c.copy(mid); else c.copy(deep);
+    c.offsetHSL((Math.random() - 0.5) * 0.012, 0.04, (Math.random() - 0.5) * 0.05);
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+    filled++;
   }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mat = new THREE.PointsMaterial({
-    size: 0.46, vertexColors: true, transparent: true, opacity: 0.97,
+    size: 0.5, vertexColors: true, transparent: true, opacity: 0.98,
     depthWrite: false, blending: THREE.NormalBlending, map: dotTexture,
   });
   const points = new THREE.Points(geo, mat);
@@ -351,7 +422,7 @@ function buildPlanet() {
 }
 
 const planet = buildPlanet();
-addTwinkle(planet, 1.6, 0.5);
+addTwinkle(planet, 1.9, 0.62);
 world.add(planet);
 
 function buildRing() {
@@ -387,7 +458,7 @@ function buildRing() {
 }
 
 const ring = buildRing();
-addTwinkle(ring, 1.3, 0.6);
+addTwinkle(ring, 1.6, 0.72);
 world.add(ring);
 
 const manager = new THREE.LoadingManager();
@@ -432,6 +503,23 @@ const instancedMeshes = photoTextures.map((tex) => {
   return mesh;
 });
 
+const photoAssignment = [];
+for (let p = 0; p < PHOTO_COUNT; p++) {
+  for (let k = 0; k < Math.ceil(FLOATER_COUNT / PHOTO_COUNT); k++) photoAssignment.push(p);
+}
+for (let i = photoAssignment.length - 1; i > 0; i--) {
+  const j = Math.floor(Math.random() * (i + 1));
+  [photoAssignment[i], photoAssignment[j]] = [photoAssignment[j], photoAssignment[i]];
+}
+for (let i = 1; i < photoAssignment.length; i++) {
+  if (photoAssignment[i] === photoAssignment[i - 1]) {
+    const swapWith = (i + 7) % photoAssignment.length;
+    if (photoAssignment[swapWith] !== photoAssignment[i - 1]) {
+      [photoAssignment[i], photoAssignment[swapWith]] = [photoAssignment[swapWith], photoAssignment[i]];
+    }
+  }
+}
+
 const floaters = [];
 const dummy = new THREE.Object3D();
 
@@ -442,7 +530,7 @@ for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
   const ringOffset = (ringIdx / RINGS.length) * Math.PI * 2 * 0.33;
 
   for (let k = 0; k < perRing && floaterIndex < FLOATER_COUNT; k++, floaterIndex++) {
-    const photoIdx = floaterIndex % PHOTO_COUNT;
+    const photoIdx = photoAssignment[floaterIndex];
     const mesh = instancedMeshes[photoIdx];
     const instanceId = mesh.count++;
 
@@ -695,6 +783,46 @@ function animate() {
 
   starsNear.rotation.y = t * 0.01;
   starsFar.rotation.y = -t * 0.006;
+
+  for (const sp of nebulaSprites) {
+    const mat = sp.material;
+    mat.opacity = 0.55 + 0.25 * Math.sin(t * sp.userData.speed + sp.userData.phase);
+  }
+
+  if (introFinished) {
+    nextShootingStarAt -= (t - (animate._lastT || t));
+    if (nextShootingStarAt <= 0 && !shootingStar) {
+      spawnShootingStar();
+      nextShootingStarAt = 6 + Math.random() * 7;
+    }
+  }
+  animate._lastT = t;
+
+  if (shootingStar) {
+    shootingStar.life += 1 / 60;
+    const p = shootingStar.life / shootingStar.dur;
+    if (p >= 1) {
+      shootingStar = null;
+      shootingStarMat.opacity = 0;
+      shootingStarHeadMat.opacity = 0;
+    } else {
+      const headPos = shootingStar.start.clone().addScaledVector(shootingStar.dir, shootingStar.speed * shootingStar.life);
+      const posAttr = shootingStarGeo.attributes.position;
+      for (let s = 0; s < SHOOTING_STAR_SEGMENTS; s++) {
+        const trailBack = (s / (SHOOTING_STAR_SEGMENTS - 1)) * 14;
+        const trailPos = headPos.clone().addScaledVector(shootingStar.dir, -trailBack);
+        posAttr.setXYZ(s, trailPos.x, trailPos.y, trailPos.z);
+      }
+      posAttr.needsUpdate = true;
+      const fadeIn = Math.min(1, p / 0.12);
+      const fadeOut = Math.min(1, (1 - p) / 0.25);
+      const alpha = Math.min(fadeIn, fadeOut);
+      shootingStarMat.opacity = alpha * 0.85;
+      shootingStarHeadMat.opacity = alpha;
+      shootingStarHeadGeo.attributes.position.setXYZ(0, headPos.x, headPos.y, headPos.z);
+      shootingStarHeadGeo.attributes.position.needsUpdate = true;
+    }
+  }
 
   for (const card of floaters) {
     const y = card.baseY + Math.sin(t * card.bobSpeed + card.phase) * card.bobAmp;
