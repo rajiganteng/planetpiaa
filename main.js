@@ -157,6 +157,7 @@ function moveNoButtonAwayFrom(clientX, clientY) {
     btn.style.left = x + 'px';
     btn.style.top = y + 'px';
   });
+  playDodgeSound();
 }
 
 gateNoBtn.addEventListener('pointerenter', (e) => moveNoButtonAwayFrom(e.clientX, e.clientY));
@@ -166,11 +167,6 @@ gateNoBtn.addEventListener('touchstart', (e) => {
   const t = e.touches[0];
   moveNoButtonAwayFrom(t ? t.clientX : null, t ? t.clientY : null);
 }, { passive: false });
-
-gateNoBtn.addEventListener('click', (e) => {
-  e.preventDefault();
-  playDodgeSound();
-});
 
 document.addEventListener('pointermove', (e) => {
   if (gateEl.classList.contains('hide')) return;
@@ -210,8 +206,8 @@ controls.enablePan = false;
 controls.enableZoom = true;
 controls.zoomSpeed = 0.9;
 controls.rotateSpeed = 0.85;
-controls.minDistance = 18;
-controls.maxDistance = 130;
+controls.minDistance = 16;
+controls.maxDistance = 260;
 controls.minPolarAngle = Math.PI * 0.12;
 controls.maxPolarAngle = Math.PI * 0.86;
 controls.autoRotate = false;
@@ -529,7 +525,7 @@ const textRingGroups = [];
 function buildTextRing(text, radius, yPos, count, spinDir) {
   const { tex, aspect } = buildRingLabelTexture(text);
   const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
-  const h = 2.6;
+  const h = 1.7;
   const w = h * aspect;
   const group = new THREE.Group();
   for (let i = 0; i < count; i++) {
@@ -547,12 +543,12 @@ function buildTextRing(text, radius, yPos, count, spinDir) {
 
 document.fonts && document.fonts.ready
   ? document.fonts.ready.then(() => {
-      world.add(buildTextRing('LOPYUUU PIAAA', 58, 1.5, 6, 1));
-      world.add(buildTextRing('LOPYUUU PIAAA', 64, -1.5, 5, -1));
+      world.add(buildTextRing('LOPYUUU PIAAA', 10.5, 0.8, 6, 1));
+      world.add(buildTextRing('LOPYUUU PIAAA', 11.5, -0.8, 5, -1));
     })
   : (() => {
-      world.add(buildTextRing('LOPYUUU PIAAA', 58, 1.5, 6, 1));
-      world.add(buildTextRing('LOPYUUU PIAAA', 64, -1.5, 5, -1));
+      world.add(buildTextRing('LOPYUUU PIAAA', 10.5, 0.8, 6, 1));
+      world.add(buildTextRing('LOPYUUU PIAAA', 11.5, -0.8, 5, -1));
     })();
 
 const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
