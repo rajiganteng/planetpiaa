@@ -367,7 +367,7 @@ function spawnShootingStar() {
   const dir = new THREE.Vector3(-Math.cos(startAngle) + (Math.random() - 0.5) * 0.6, -0.3 - Math.random() * 0.3, -Math.sin(startAngle) + (Math.random() - 0.5) * 0.6).normalize();
   shootingStar = { start, dir, speed: 90 + Math.random() * 50, life: 0, dur: 1.1 + Math.random() * 0.5 };
 }
-let nextShootingStarAt = 4 + Math.random() * 5;
+let nextShootingStarAt = 5;
 
 function buildPlanet() {
   const COUNT = 20000;
@@ -387,7 +387,7 @@ function buildPlanet() {
     guard++;
     const x = (Math.random() * 2 - 1) * BOUND_X;
     const yRaw = Math.random() * (BOUND_Y_TOP + BOUND_Y_BOTTOM) - BOUND_Y_BOTTOM;
-    const yImplicit = -yRaw; // implicit formula's "up" is our -y; flip so the cusp points down
+    const yImplicit = yRaw;
     const a = x * x + yImplicit * yImplicit - 1;
     const inside = a * a * a - x * x * yImplicit * yImplicit * yImplicit <= 0;
     if (!inside) continue;
@@ -793,7 +793,7 @@ function animate() {
     nextShootingStarAt -= (t - (animate._lastT || t));
     if (nextShootingStarAt <= 0 && !shootingStar) {
       spawnShootingStar();
-      nextShootingStarAt = 6 + Math.random() * 7;
+      nextShootingStarAt = 5;
     }
   }
   animate._lastT = t;
