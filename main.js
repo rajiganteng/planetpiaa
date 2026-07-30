@@ -341,7 +341,7 @@ for (let i = 0; i < nebulaColors.length; i++) {
 }
 
 const shootingStarGeo = new THREE.BufferGeometry();
-const SHOOTING_STAR_SEGMENTS = 24;
+const SHOOTING_STAR_SEGMENTS = 28;
 shootingStarGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SHOOTING_STAR_SEGMENTS * 3), 3));
 const shootingStarMat = new THREE.LineBasicMaterial({
   color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false,
@@ -352,20 +352,30 @@ scene.add(shootingStarLine);
 const shootingStarHeadGeo = new THREE.BufferGeometry();
 shootingStarHeadGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
 const shootingStarHeadMat = new THREE.PointsMaterial({
-  color: 0xffffff, size: 3.2, map: dotTexture, transparent: true, opacity: 0,
+  color: 0xffffff, size: 3.6, map: dotTexture, transparent: true, opacity: 0,
   blending: THREE.AdditiveBlending, depthWrite: false,
 });
 const shootingStarHead = new THREE.Points(shootingStarHeadGeo, shootingStarHeadMat);
 scene.add(shootingStarHead);
 
+const SHOOTING_STAR_COLORS = [0xffffff, 0x7ff2ff, 0xffcf5c, 0xff6fd8, 0xa07cff, 0x7dffb0, 0xff8f6f];
+
 let shootingStar = null;
 function spawnShootingStar() {
   const startAngle = Math.random() * Math.PI * 2;
-  const height = 60 + Math.random() * 90;
-  const dist = 180 + Math.random() * 100;
-  const start = new THREE.Vector3(Math.cos(startAngle) * dist, height, Math.sin(startAngle) * dist);
-  const dir = new THREE.Vector3(-Math.cos(startAngle) + (Math.random() - 0.5) * 0.6, -0.3 - Math.random() * 0.3, -Math.sin(startAngle) + (Math.random() - 0.5) * 0.6).normalize();
-  shootingStar = { start, dir, speed: 90 + Math.random() * 50, life: 0, dur: 1.1 + Math.random() * 0.5 };
+  const startHeight = 40 + Math.random() * 70;
+  const startDist = 190 + Math.random() * 90;
+  const start = new THREE.Vector3(Math.cos(startAngle) * startDist, startHeight, Math.sin(startAngle) * startDist);
+
+  // aim through a point close to the planet, not just a distant background streak
+  const target = new THREE.Vector3((Math.random() - 0.5) * 16, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 16);
+  const dir = target.clone().sub(start).normalize();
+
+  const color = SHOOTING_STAR_COLORS[Math.floor(Math.random() * SHOOTING_STAR_COLORS.length)];
+  shootingStarMat.color.set(color);
+  shootingStarHeadMat.color.set(new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.55));
+
+  shootingStar = { start, dir, speed: 140 + Math.random() * 40, life: 0, dur: 2.4 + Math.random() * 0.5 };
 }
 let nextShootingStarAt = 5;
 
@@ -809,7 +819,7 @@ function animate() {
       const headPos = shootingStar.start.clone().addScaledVector(shootingStar.dir, shootingStar.speed * shootingStar.life);
       const posAttr = shootingStarGeo.attributes.position;
       for (let s = 0; s < SHOOTING_STAR_SEGMENTS; s++) {
-        const trailBack = (s / (SHOOTING_STAR_SEGMENTS - 1)) * 14;
+        const trailBack = (s / (SHOOTING_STAR_SEGMENTS - 1)) * 22;
         const trailPos = headPos.clone().addScaledVector(shootingStar.dir, -trailBack);
         posAttr.setXYZ(s, trailPos.x, trailPos.y, trailPos.z);
       }
