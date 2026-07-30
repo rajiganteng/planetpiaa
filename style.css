@@ -19,7 +19,6 @@ html,body{
   touch-action:none;
 }
 
-/* ================= gate / gerbang ================= */
 .gate{
   position:fixed; inset:0; z-index:200;
   background:radial-gradient(ellipse at 50% 35%, #1b0e26 0%, #05050c 75%);
@@ -71,7 +70,6 @@ html,body{
   transition:left .3s cubic-bezier(.34,1.56,.64,1), top .3s cubic-bezier(.34,1.56,.64,1);
 }
 
-/* ================= welcome card (after loading) ================= */
 .welcome-screen{
   position:fixed; inset:0; z-index:150;
   background:radial-gradient(ellipse at 50% 30%, #fff0f2 0%, #ffe1e6 100%);
@@ -114,7 +112,6 @@ html,body{
 }
 .welcome-btn:active{ transform:scale(0.98); }
 
-
 .loading{
   position:fixed; inset:0; z-index:100;
   background:radial-gradient(ellipse at 50% 40%, #0c1130 0%, #05071a 70%);
@@ -125,13 +122,6 @@ html,body{
 }
 .loading.hide{ opacity:0; visibility:hidden; pointer-events:none; }
 
-/* spinning "planet" loader: a glowing sphere with a tilted ring, both
-   continuously rotating, standing in for the heart-planet the site is
-   building.
-   IMPORTANT: the spinning "surface" uses a REPEATING pattern translated by
-   exactly one repeat-unit per loop — that's what makes it loop seamlessly.
-   (Sliding a single non-repeating gradient and snapping back to 0% at the
-   end of the loop is what caused the visible "stutter/restart" before.) */
 .loading-planet{
   position:relative; width:76px; height:76px; margin-bottom:4px;
   transform-style:preserve-3d;
@@ -140,7 +130,7 @@ html,body{
   position:absolute; inset:6px; border-radius:50%;
   overflow:hidden;
   box-shadow:0 0 24px 5px rgba(255,55,40,.5);
-  background:#5c0a10; /* fallback under the stripes */
+  background:#5c0a10;
 }
 .lp-stripes{
   position:absolute; top:-15%; left:-60%; width:280%; height:130%;
@@ -151,7 +141,7 @@ html,body{
 }
 @keyframes lpStripeScroll{
   from{ transform:translateX(0); }
-  to{ transform:translateX(-72px); } /* exactly one repeat unit = no visible seam */
+  to{ transform:translateX(-72px); }
 }
 .lp-shade{
   position:absolute; inset:0; border-radius:50%;
@@ -193,7 +183,6 @@ html,body{
   transition:width .25s ease;
 }
 
-/* ================= corner label ================= */
 .corner-label{
   position:fixed; z-index:8; pointer-events:none;
   top:max(20px, env(safe-area-inset-top));
@@ -213,7 +202,6 @@ html,body{
   font-size:.68rem; letter-spacing:.06em; color:var(--muted);
 }
 
-/* ================= ui overlay ================= */
 .ui{
   position:fixed; inset:0; z-index:10; pointer-events:none;
   display:flex; align-items:flex-end; justify-content:center;

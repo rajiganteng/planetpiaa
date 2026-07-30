@@ -1,22 +1,13 @@
-// ============================================================
-// ONLY FOR U — dunia kecil 3D berisi kenangan
-// ------------------------------------------------------------
-// GANTI DI SINI kalau mau ubah teks judul (bisa dibaca dari depan & belakang):
+
 const TITLE_TEXT = "Only For U, Kakaaa Piaaaaa🤍";
-// Jumlah foto sumber yang dipakai (assets/photos/1.png .. N.png)
+
 const PHOTO_COUNT = 10;
 
-// ---- musik ----
-// Ganti assets/audio/song.mp3 dengan lagu aslimu (nama file boleh sama persis).
-// Lagu akan mulai diputar dari detik AUDIO_START, dan otomatis berhenti di
-// detik AUDIO_END. AUDIO_EPIC menandai momen "epic" di lagu — animasi masuk
-// planet akan pas selesai/menetap tepat di detik itu.
 const AUDIO_SRC = 'assets/audio/song.mp3';
-const AUDIO_START = 36;   // 0:36
-const AUDIO_EPIC = 46;    // 0:46 — bagian epic, animasi intro menetap di sini
-const AUDIO_END = 199;    // 3:19 — lagu berhenti di sini
+const AUDIO_START = 36;
+const AUDIO_EPIC = 46;
+const AUDIO_END = 199;
 const AUDIO_VOLUME = 0.85;
-// ============================================================
 
 import * as THREE from './vendor/three.module.min.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
@@ -29,12 +20,6 @@ const gateEl = document.getElementById('gate');
 const gateYesBtn = document.getElementById('gateYes');
 const gateNoBtn = document.getElementById('gateNo');
 
-// ============================================================
-// GATE / GERBANG — "mau lihat cewe tercantik di dunia gak?"
-// the "no" button dodges away so it can never actually be pressed.
-// Sound effects for both buttons are imported audio files (put your own
-// files at the paths below — see README).
-// ============================================================
 const YES_SOUND_SRC = 'assets/audio/yes-sfx.mp3';
 const NO_SOUND_SRC = 'assets/audio/no-sfx.mp3';
 
@@ -66,9 +51,6 @@ function playDodgeSound() {
   } catch (e) {}
 }
 
-// ============================================================
-// MUSIK — dimulai bertepatan dengan animasi masuk ke planet utama.
-// ============================================================
 const bgm = new Audio(AUDIO_SRC);
 bgm.preload = 'auto';
 bgm.volume = 0;
@@ -93,10 +75,7 @@ function fadeAudio(from, to, ms, onDone) {
 }
 
 function unlockAudio() {
-  // Playing (then immediately pausing) inside a real user-gesture handler
-  // "unlocks" the element so later programmatic .play() calls (e.g. after
-  // the loading screen, with no fresh gesture) are still allowed — this
-  // matters especially on iOS Safari.
+
   const p = bgm.play();
   if (p && p.catch) p.catch(() => {});
   bgm.pause();
@@ -129,16 +108,8 @@ bgm.addEventListener('timeupdate', () => {
   }
 });
 
-// Pin BOTH buttons to fixed pixel positions right away (matching their
-// natural flex layout). This is what keeps "mauuu😍" perfectly still —
-// if only the "no" button switched to position:fixed, removing it from the
-// flex flow would leave "mauuu😍" alone in the row and the browser would
-// re-center it, making it look like it moved.
 function pinGateButtons() {
-  // measure BOTH rects first, before touching any styles — if we pin one
-  // button then measure the next, the first pin already removed it from
-  // the flex flow, so the second button's measured position would be
-  // wrong (this was the cause of the two buttons ending up overlapping).
+
   const rects = [gateYesBtn, gateNoBtn].map((btn) => btn.getBoundingClientRect());
   [gateYesBtn, gateNoBtn].forEach((btn, i) => {
     const r = rects[i];
@@ -153,7 +124,7 @@ if (document.fonts && document.fonts.ready) {
 } else {
   requestAnimationFrame(pinGateButtons);
 }
-setTimeout(pinGateButtons, 350); // safety net in case fonts.ready is slow/unavailable
+setTimeout(pinGateButtons, 350);
 window.addEventListener('resize', () => {
   if (!gateEl.classList.contains('hide')) {
     gateNoBtn.style.position = '';
@@ -168,7 +139,7 @@ let lastDodgeAt = 0;
 const DODGE_COOLDOWN_MS = 380;
 function moveNoButtonAwayFrom(clientX, clientY) {
   const now = performance.now();
-  if (now - lastDodgeAt < DODGE_COOLDOWN_MS) return; // avoid spamming movement
+  if (now - lastDodgeAt < DODGE_COOLDOWN_MS) return;
   lastDodgeAt = now;
 
   const btn = gateNoBtn;
@@ -195,18 +166,12 @@ gateNoBtn.addEventListener('touchstart', (e) => {
   const t = e.touches[0];
   moveNoButtonAwayFrom(t ? t.clientX : null, t ? t.clientY : null);
 }, { passive: false });
-// The DODGE itself fires instantly on touchstart/pointerdown above (so it
-// can never actually be tapped). The SOUND is triggered separately here, on
-// 'click' — iOS Safari's audio-unlock policy only reliably recognizes
-// click/touchend as a valid gesture for creating/resuming an AudioContext;
-// touchstart/pointerdown were silently getting blocked, which is why the
-// dodge sound was missing entirely on iPhone before.
+
 gateNoBtn.addEventListener('click', (e) => {
   e.preventDefault();
   playDodgeSound();
 });
-// also dodge a bit before the pointer even reaches it, on desktop (silent —
-// see note above)
+
 document.addEventListener('pointermove', (e) => {
   if (gateEl.classList.contains('hide')) return;
   const r = gateNoBtn.getBoundingClientRect();
@@ -226,7 +191,6 @@ gateYesBtn.addEventListener('click', () => {
   startLoadingSequence();
 });
 
-// ---------- renderer / scene / camera ----------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -253,11 +217,9 @@ controls.maxPolarAngle = Math.PI * 0.86;
 controls.autoRotate = false;
 controls.target.set(0, 2, 0);
 
-// world group: everything that slowly tumbles together
 const world = new THREE.Group();
 scene.add(world);
 
-// ---------- soft circular sprite texture (keeps particles round, not blocky) ----------
 function makeDotTexture() {
   const size = 128;
   const c = document.createElement('canvas');
@@ -275,9 +237,6 @@ function makeDotTexture() {
 }
 const dotTexture = makeDotTexture();
 
-// ---------- per-particle "twinkle" shimmer (position never changes, only
-// size/brightness gently pulses per-particle) so the star/ring/planet dots
-// don't look flat and static ----------
 const twinkleMaterials = [];
 function addTwinkle(points, speed = 1.2, strength = 0.6) {
   const geometry = points.geometry;
@@ -287,7 +246,7 @@ function addTwinkle(points, speed = 1.2, strength = 0.6) {
   const speeds = new Float32Array(count);
   for (let i = 0; i < count; i++) {
     phases[i] = Math.random() * Math.PI * 2;
-    speeds[i] = 0.6 + Math.random() * 0.9; // per-particle speed variation so they don't all pulse in lockstep
+    speeds[i] = 0.6 + Math.random() * 0.9;
   }
   geometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
   geometry.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
@@ -309,7 +268,6 @@ function addTwinkle(points, speed = 1.2, strength = 0.6) {
   twinkleMaterials.push(material);
 }
 
-// ---------- starfield (fixed, gentle independent drift) ----------
 function makeStars(count, rMin, rMax, size, color, opacity) {
   const positions = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
@@ -335,7 +293,6 @@ addTwinkle(starsNear, 1.1, 0.75);
 addTwinkle(starsFar, 0.8, 0.7);
 scene.add(starsNear, starsFar);
 
-// ---------- heart-shaped particle planet — dense, deep red ("merah pekat") ----------
 function heartPoint(t) {
   const x = 16 * Math.pow(Math.sin(t), 3);
   const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
@@ -346,8 +303,7 @@ function buildPlanet() {
   const COUNT = 15000;
   const positions = new Float32Array(COUNT * 3);
   const colors = new Float32Array(COUNT * 3);
-  // dense/solid red palette — kept in the red family only (no orange/yellow)
-  // so the planet reads as "merah pekat" rather than a glowing sun.
+
   const deep = new THREE.Color(0x40000a);
   const mid = new THREE.Color(0x9c0f18);
   const bright = new THREE.Color(0xe23244);
@@ -356,7 +312,7 @@ function buildPlanet() {
   for (let i = 0; i < COUNT; i++) {
     const t = Math.random() * Math.PI * 2;
     const { x: bx, y: by } = heartPoint(t);
-    const s = Math.cbrt(Math.random()); // 0 core -> 1 surface, volume-filled
+    const s = Math.cbrt(Math.random());
     const depth = Math.sqrt(Math.max(0, 1 - s * s)) * 8 * (0.45 + Math.random() * 0.55);
 
     const x = bx * s * SCALE;
@@ -389,7 +345,6 @@ const planet = buildPlanet();
 addTwinkle(planet, 1.6, 0.5);
 world.add(planet);
 
-// ---------- ring / disc of pale particles around the planet ----------
 function buildRing() {
   const COUNT = 7000;
   const rInner = 12.5, rOuter = 25;
@@ -426,30 +381,14 @@ const ring = buildRing();
 addTwinkle(ring, 1.3, 0.6);
 world.add(ring);
 
-// ---------- floating photo cards (9:16, portrait, small) ----------
-// PERFORMANCE NOTE: with 300+ cards, creating one THREE.Mesh per card (each
-// needing up to 6 draw calls for a multi-material box) got very slow —
-// hundreds/thousands of draw calls per frame. Instead we use ONE
-// THREE.InstancedMesh PER SOURCE PHOTO (so only PHOTO_COUNT = 10 draw calls
-// total, no matter how many cards there are), and move each card by
-// updating its instance matrix every frame. Cards are simple double-sided
-// planes (photo visible from front AND back) rather than boxes, which is
-// both cheaper and avoids the "blank white back" problem entirely.
 const manager = new THREE.LoadingManager();
 manager.onError = (url) => console.warn('Gagal memuat:', url);
-// Attach onLoad right away (not later, on the gate button click) — otherwise
-// if these tiny textures finish loading while the user is still deciding on
-// the gate screen, the completion event would fire with no listener attached
-// and get missed entirely, leaving the loading screen stuck on the safety net.
+
 let assetsLoaded = false;
 manager.onLoad = () => { assetsLoaded = true; requestHideLoading(); };
 
 const texLoader = new THREE.TextureLoader(manager);
 
-// Preload each of the 10 source photos ONCE and reuse the texture object
-// across many small floating cards — this is how we get "banyak foto"
-// (lots of photos on screen) without re-downloading the same image over
-// and over.
 const photoTextures = [];
 for (let i = 1; i <= PHOTO_COUNT; i++) {
   const tex = texLoader.load(`assets/photos/${i}.png`);
@@ -457,19 +396,6 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
   photoTextures.push(tex);
 }
 
-// How many floating photo-cards to scatter in total. This is intentionally
-// MORE than PHOTO_COUNT — the same 10 source photos get reused/randomized
-// across many small floating cards.
-//
-// Positioning uses evenly-spaced angles across a few concentric "rings" at
-// different radius/height (with jitter for an organic feel) instead of
-// random clusters — that guarantees the photos actually surround the whole
-// planet with no big empty gaps, instead of randomly clumping on one side.
-//
-// IMPORTANT: these radii start well past the white particle ring's outer
-// edge (rOuter = 25 in buildRing above) — photos form their OWN layer
-// surrounding the white dots from further out, instead of sitting on top
-// of / overlapping them.
 const FLOATER_COUNT = 2000;
 const RINGS = [
   { radius: 27, ySpread: 2.2, yCenter: -6 },
@@ -483,48 +409,41 @@ const RINGS = [
 ];
 const perRing = Math.ceil(FLOATER_COUNT / RINGS.length);
 
-// 9:16 portrait card — width:height = 9:16
 const CARD_W = 1;
 const CARD_H = CARD_W * (16 / 9);
 const cardGeometry = new THREE.PlaneGeometry(CARD_W, CARD_H);
 
-// one InstancedMesh per source photo
 const perPhotoCapacity = Math.ceil(FLOATER_COUNT / PHOTO_COUNT) + 1;
 const instancedMeshes = photoTextures.map((tex) => {
   const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
   const mesh = new THREE.InstancedMesh(cardGeometry, mat, perPhotoCapacity);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  mesh.count = 0; // grows as we assign cards below
+  mesh.count = 0;
   world.add(mesh);
   return mesh;
 });
 
-const floaters = []; // per-card animation state
+const floaters = [];
 const dummy = new THREE.Object3D();
 
 let floaterIndex = 0;
 for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
   const ring = RINGS[ringIdx];
-  // stagger each ring's starting angle so the rings don't all line up radially
+
   const ringOffset = (ringIdx / RINGS.length) * Math.PI * 2 * 0.33;
 
   for (let k = 0; k < perRing && floaterIndex < FLOATER_COUNT; k++, floaterIndex++) {
-    const photoIdx = floaterIndex % PHOTO_COUNT; // even spread across the 10 textures
+    const photoIdx = floaterIndex % PHOTO_COUNT;
     const mesh = instancedMeshes[photoIdx];
     const instanceId = mesh.count++;
 
     const scale = 1.05 + Math.random() * 0.6;
 
-    // evenly spaced base angle within this ring + gentle jitter — this is
-    // what guarantees full 360° coverage around the planet
     const slice = (Math.PI * 2) / perRing;
     const angle = ringOffset + k * slice + (Math.random() - 0.5) * slice * 0.5;
     const radius = ring.radius + (Math.random() - 0.5) * 3;
     const baseY = ring.yCenter + (Math.random() - 0.5) * ring.ySpread;
 
-    // Face roughly outward/inward with only a SMALL random tilt — enough for
-    // an organic, non-uniform look, but never enough to flip the card
-    // upside down or edge-on (that's what read as "kebalik" before).
     const facingY = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.5;
     const tiltX = (Math.random() - 0.5) * 0.22;
     const tiltZ = (Math.random() - 0.5) * 0.18;
@@ -538,7 +457,7 @@ for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
       baseRotX: tiltX,
       baseRotZ: tiltZ,
       curRotY: facingY,
-      spinSpeed: 0.05 + Math.random() * 0.06, // slow, steady, upright-preserving spin
+      spinSpeed: 0.05 + Math.random() * 0.06,
       phase: Math.random() * Math.PI * 2,
       bobSpeed: 0.4 + Math.random() * 0.5,
       bobAmp: 0.5 + Math.random() * 0.6,
@@ -556,12 +475,6 @@ for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
 }
 instancedMeshes.forEach((m) => { m.instanceMatrix.needsUpdate = true; });
 
-// ---------- title text — always faces the camera (billboard) ----------
-// Stays positioned above the tumbling planet (it's still a child of
-// `world`, so it orbits along with the planet's slow tumble), but each
-// frame we cancel out the parent's rotation on its ORIENTATION only, so the
-// text itself always faces the camera directly and is never upside down or
-// mirrored.
 function buildTitleCanvas(text) {
   const canvasEl = document.createElement('canvas');
   const W = 1800, H = 320;
@@ -594,12 +507,6 @@ document.fonts && document.fonts.ready
   ? document.fonts.ready.then(() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })
   : (() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })();
 
-// ---------- two rings of "LOPYUUU PIAAA" text encircling the planet ----------
-// Both sit as clean concentric circles beyond the outermost photo layer,
-// close to the equatorial plane, spinning slowly in OPPOSITE directions.
-// (They used to sit high above / low below the planet at very different
-// heights, which from most viewing angles visually crossed into an "X"
-// shape — keeping them both near the same height avoids that entirely.)
 function buildRingLabelTexture(text) {
   const canvasEl = document.createElement('canvas');
   const W = 900, H = 220;
@@ -648,11 +555,6 @@ document.fonts && document.fonts.ready
       world.add(buildTextRing('LOPYUUU PIAAA', 64, -1.5, 5, -1));
     })();
 
-// ---------- cinematic intro animation: multi-phase camera flythrough ----------
-// Instead of a single straight dolly-in, the camera swoops toward the planet
-// along a curved path, overshoots, swings back out, does a smaller second
-// bounce, then settles — all choreographed to land exactly on the "epic"
-// moment in the music (AUDIO_EPIC).
 const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
 const easeOutBack = (x) => {
   const c1 = 1.70158, c3 = c1 + 1;
@@ -661,12 +563,9 @@ const easeOutBack = (x) => {
 const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
 const TARGET_FIXED = new THREE.Vector3(0, 2, 0);
-// intro runs exactly as long as it takes the music to go from AUDIO_START to
-// AUDIO_EPIC, so the flythrough finishes right as the "epic" part hits
+
 const INTRO_DUR = Math.max(3, AUDIO_EPIC - AUDIO_START) + 0.4;
 
-// describe the camera's resting position (where it ends up / where
-// OrbitControls takes over) in spherical terms around TARGET_FIXED
 const REST_OFFSET = camera.position.clone().sub(TARGET_FIXED);
 const REST_RADIUS = REST_OFFSET.length();
 const REST_POLAR = Math.acos(THREE.MathUtils.clamp(REST_OFFSET.y / REST_RADIUS, -1, 1));
@@ -680,21 +579,16 @@ function sphericalToPos(az, pol, r) {
   );
 }
 
-// keyframes: [time fraction, azimuth, polar, radius]
-// A much richer flythrough than a simple dolly-in: wide distant establishing
-// shot -> sweeping orbital descent (passing both above and slightly below
-// the ring) -> a close overshoot -> swings back out the OTHER side -> a
-// second close pass -> another swing-out -> small settling bounces -> rest.
 const FLY_KEYFRAMES = [
   { t: 0.00, az: REST_AZIMUTH + 3.4, pol: REST_POLAR - 0.50, r: REST_RADIUS + 260 },
   { t: 0.10, az: REST_AZIMUTH + 2.5, pol: REST_POLAR - 0.42, r: REST_RADIUS + 150 },
   { t: 0.20, az: REST_AZIMUTH + 1.6, pol: REST_POLAR - 0.15, r: REST_RADIUS + 70 },
-  { t: 0.30, az: REST_AZIMUTH + 0.85, pol: REST_POLAR + 0.20, r: REST_RADIUS + 15 },  // dips slightly below for a moment
-  { t: 0.40, az: REST_AZIMUTH + 0.30, pol: REST_POLAR - 0.10, r: REST_RADIUS - 25 },  // close overshoot
-  { t: 0.50, az: REST_AZIMUTH - 0.50, pol: REST_POLAR + 0.25, r: REST_RADIUS + 35 },  // bolak-balik #1: swing out, other side
-  { t: 0.60, az: REST_AZIMUTH - 1.00, pol: REST_POLAR - 0.05, r: REST_RADIUS - 15 },  // second close pass
-  { t: 0.70, az: REST_AZIMUTH - 0.40, pol: REST_POLAR + 0.12, r: REST_RADIUS + 20 },  // bolak-balik #2: swing out again
-  { t: 0.80, az: REST_AZIMUTH + 0.15, pol: REST_POLAR - 0.04, r: REST_RADIUS - 8 },   // small third bounce in
+  { t: 0.30, az: REST_AZIMUTH + 0.85, pol: REST_POLAR + 0.20, r: REST_RADIUS + 15 },
+  { t: 0.40, az: REST_AZIMUTH + 0.30, pol: REST_POLAR - 0.10, r: REST_RADIUS - 25 },
+  { t: 0.50, az: REST_AZIMUTH - 0.50, pol: REST_POLAR + 0.25, r: REST_RADIUS + 35 },
+  { t: 0.60, az: REST_AZIMUTH - 1.00, pol: REST_POLAR - 0.05, r: REST_RADIUS - 15 },
+  { t: 0.70, az: REST_AZIMUTH - 0.40, pol: REST_POLAR + 0.12, r: REST_RADIUS + 20 },
+  { t: 0.80, az: REST_AZIMUTH + 0.15, pol: REST_POLAR - 0.04, r: REST_RADIUS - 8 },
   { t: 0.90, az: REST_AZIMUTH - 0.04, pol: REST_POLAR + 0.02, r: REST_RADIUS + 5 },
   { t: 1.00, az: REST_AZIMUTH, pol: REST_POLAR, r: REST_RADIUS },
 ];
@@ -731,19 +625,12 @@ let introStart = null;
 let introFinished = false;
 function startIntro() { introStart = performance.now(); startBgmPlayback(); }
 
-// ---------- resize ----------
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ============================================================
-// LOADING SEQUENCE — only starts once the gate has been dismissed with
-// "mauuu😍". Kept on screen for a guaranteed minimum time (~4s) so the
-// spinning-planet loading animation actually gets seen, regardless of how
-// fast the (tiny) photo assets finish downloading.
-// ============================================================
 const MIN_LOADING_MS = 4000;
 let PAGE_LOAD_START = null;
 let loadingSequenceStarted = false;
@@ -769,7 +656,7 @@ getInBtn.addEventListener('click', () => {
 });
 
 function requestHideLoading() {
-  if (!loadingSequenceStarted) return; // gate not dismissed yet — ignore for now
+  if (!loadingSequenceStarted) return;
   const elapsed = performance.now() - PAGE_LOAD_START;
   const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
   setTimeout(hideLoading, remaining);
@@ -778,11 +665,9 @@ function requestHideLoading() {
 function startLoadingSequence() {
   loadingSequenceStarted = true;
   PAGE_LOAD_START = performance.now();
-  // safety net in case something never fires onLoad (e.g. a missing photo file)
+
   setTimeout(hideLoading, MIN_LOADING_MS + 2500);
-  // if the (tiny) textures already finished loading while the gate was up,
-  // kick the countdown off immediately instead of waiting on an event that
-  // already fired in the past
+
   if (assetsLoaded) requestHideLoading();
 
   (function tickLoadingBar() {
@@ -793,18 +678,13 @@ function startLoadingSequence() {
   })();
 }
 
-// ---------- animation loop ----------
 const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
   const t = clock.getElapsedTime();
 
-  // -------- intro: multi-phase camera flythrough + planet "pop" + starfield fade --------
-  // IMPORTANT: this block must stop touching camera.position/lookAt once the
-  // intro is finished, otherwise it fights OrbitControls every frame and the
-  // view looks "stuck" (can't be dragged) even though controls are enabled.
-  let introP = 1; // 1 = fully settled
+  let introP = 1;
   if (introStart !== null && !introFinished) {
     const elapsed = (performance.now() - introStart) / 1000;
     introP = Math.min(1, elapsed / INTRO_DUR);
@@ -812,15 +692,11 @@ function animate() {
     const fly = sampleFlyPath(introP);
     camera.position.copy(sphericalToPos(fly.az, fly.pol, fly.r));
 
-    // subtle cinematic roll/bank through the busiest swooping section,
-    // easing back to a perfectly upright camera by the time it settles
     const rollDecay = 1 - easeOutCubic(introP);
     const roll = Math.sin(introP * Math.PI * 3.2) * 0.16 * rollDecay;
     camera.up.set(Math.sin(roll), Math.cos(roll), 0);
     camera.lookAt(TARGET_FIXED);
 
-    // the planet itself "pops" into being fairly quickly (first ~3s),
-    // while the camera keeps swooping around it for the rest of the intro
     const scaleP = Math.min(1, elapsed / 3.0);
     world.scale.setScalar(Math.max(0.001, easeOutBack(scaleP)));
 
@@ -838,8 +714,6 @@ function animate() {
     }
   }
 
-  // extra unwind spin resolves within the first few seconds, independent of
-  // the overall (now longer) intro duration, then settles into a slow tumble
   const spinUnwindP = introStart !== null
     ? Math.min(1, (performance.now() - introStart) / 1000 / 3.5)
     : 1;
@@ -847,9 +721,6 @@ function animate() {
   world.rotation.x = Math.sin(t * 0.12) * 0.10;
   world.rotation.z = Math.cos(t * 0.09) * 0.05;
 
-  // keep the title always facing the camera, regardless of the planet's
-  // own tumble (it still travels/orbits with the planet since it's parented
-  // to `world` — only its ORIENTATION is corrected here)
   if (titleMesh) {
     const parentQuat = new THREE.Quaternion().setFromEuler(world.rotation);
     titleMesh.quaternion.copy(parentQuat.clone().invert().multiply(camera.quaternion));
@@ -865,8 +736,7 @@ function animate() {
 
   for (const card of floaters) {
     const y = card.baseY + Math.sin(t * card.bobSpeed + card.phase) * card.bobAmp;
-    // slow continuous spin around Y (never flips the card upside down),
-    // plus a small gentle wobble on X/Z for organic life without tumbling
+
     card.curRotY += card.spinSpeed * 0.016;
     const rx = card.baseRotX + Math.sin(t * 0.5 + card.phase) * card.wobbleAmp;
     const rz = card.baseRotZ + Math.cos(t * 0.4 + card.phase) * card.wobbleAmp;
