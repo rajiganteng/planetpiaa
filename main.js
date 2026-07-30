@@ -22,6 +22,7 @@ const gateNoBtn = document.getElementById('gateNo');
 
 const YES_SOUND_SRC = 'assets/audio/yes-sfx.mp3';
 const NO_SOUND_SRC = 'assets/audio/no-sfx.mp3';
+const LESGO_SOUND_SRC = 'assets/audio/lesgo-sfx.mp3';
 
 const yesSfx = new Audio(YES_SOUND_SRC);
 yesSfx.preload = 'auto';
@@ -35,21 +36,36 @@ noSfx.addEventListener('error', () => {
   console.warn('Sound effect tidak ditemukan/gagal dimuat:', NO_SOUND_SRC, '— letakkan file di', NO_SOUND_SRC);
 });
 
-function playYesSound() {
-  try {
-    yesSfx.currentTime = 0;
-    const p = yesSfx.play();
-    if (p && p.catch) p.catch(() => {});
-  } catch (e) {}
-}
+const lesgoSfx = new Audio(LESGO_SOUND_SRC);
+lesgoSfx.preload = 'auto';
+lesgoSfx.addEventListener('error', () => {
+  console.warn('Sound effect tidak ditemukan/gagal dimuat:', LESGO_SOUND_SRC, '— letakkan file di', LESGO_SOUND_SRC);
+});
 
-function playDodgeSound() {
+function safePlay(el) {
+  try { el.currentTime = 0; } catch (e) {}
   try {
-    noSfx.currentTime = 0;
-    const p = noSfx.play();
+    const p = el.play();
     if (p && p.catch) p.catch(() => {});
   } catch (e) {}
 }
+function playYesSound() { safePlay(yesSfx); }
+function playDodgeSound() { safePlay(noSfx); }
+function playLesgoSound() { safePlay(lesgoSfx); }
+
+let mediaUnlocked = false;
+function unlockAllMedia() {
+  if (mediaUnlocked) return;
+  mediaUnlocked = true;
+  [yesSfx, noSfx, lesgoSfx].forEach((el) => {
+    const p = el.play();
+    if (p && p.catch) p.catch(() => {});
+    el.pause();
+    try { el.currentTime = 0; } catch (e) {}
+  });
+}
+document.addEventListener('touchstart', unlockAllMedia, { once: true, capture: true, passive: true });
+document.addEventListener('pointerdown', unlockAllMedia, { once: true, capture: true });
 
 const bgm = new Audio(AUDIO_SRC);
 bgm.preload = 'auto';
@@ -204,10 +220,10 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.07;
 controls.enablePan = false;
 controls.enableZoom = true;
-controls.zoomSpeed = 0.9;
+controls.zoomSpeed = 1.3;
 controls.rotateSpeed = 0.85;
 controls.minDistance = 16;
-controls.maxDistance = 260;
+controls.maxDistance = 500;
 controls.minPolarAngle = Math.PI * 0.12;
 controls.maxPolarAngle = Math.PI * 0.86;
 controls.autoRotate = false;
@@ -217,13 +233,14 @@ const world = new THREE.Group();
 scene.add(world);
 
 function makeDotTexture() {
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d');
   const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
   grad.addColorStop(0, 'rgba(255,255,255,1)');
-  grad.addColorStop(0.35, 'rgba(255,255,255,0.85)');
+  grad.addColorStop(0.2, 'rgba(255,255,255,0.95)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0.65)');
   grad.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
@@ -240,24 +257,34 @@ function addTwinkle(points, speed = 1.2, strength = 0.6) {
   const count = geometry.attributes.position.count;
   const phases = new Float32Array(count);
   const speeds = new Float32Array(count);
+  const flickers = new Float32Array(count);
   for (let i = 0; i < count; i++) {
     phases[i] = Math.random() * Math.PI * 2;
     speeds[i] = 0.6 + Math.random() * 0.9;
+    flickers[i] = 0.15 + Math.random() * 0.4;
   }
   geometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
   geometry.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
+  geometry.setAttribute('aFlicker', new THREE.BufferAttribute(flickers, 1));
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = { value: 0 };
     shader.uniforms.uSpeed = { value: speed };
     shader.uniforms.uStrength = { value: strength };
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aPhase;\nattribute float aSpeed;\nuniform float uTime;\nuniform float uSpeed;\nuniform float uStrength;\nvarying float vTwinkle;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTwinkle = 1.0 - uStrength + uStrength * (0.5 + 0.5 * sin(uTime * uSpeed * aSpeed + aPhase * 6.2831852));')
-      .replace('gl_PointSize = size;', 'gl_PointSize = size * (0.4 + 0.8 * vTwinkle);');
+      .replace('#include <common>', '#include <common>\nattribute float aPhase;\nattribute float aSpeed;\nattribute float aFlicker;\nuniform float uTime;\nuniform float uSpeed;\nuniform float uStrength;\nvarying float vTwinkle;')
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\n' +
+        'float twBase = 0.5 + 0.5 * sin(uTime * uSpeed * aSpeed + aPhase * 6.2831852);\n' +
+        'float twBeat = 0.5 + 0.5 * sin(uTime * uSpeed * aFlicker * 3.1 + aPhase * 3.7);\n' +
+        'float twCombined = pow(twBase * twBeat, 1.6);\n' +
+        'vTwinkle = 1.0 - uStrength + uStrength * twCombined;'
+      )
+      .replace('gl_PointSize = size;', 'gl_PointSize = size * (0.35 + 0.9 * vTwinkle);');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying float vTwinkle;')
-      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse, opacity * mix(0.2, 1.0, vTwinkle) );');
+      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse, opacity * mix(0.12, 1.0, vTwinkle) );');
     material.userData.shader = shader;
   };
   material.needsUpdate = true;
@@ -296,7 +323,7 @@ function heartPoint(t) {
 }
 
 function buildPlanet() {
-  const COUNT = 15000;
+  const COUNT = 20000;
   const positions = new Float32Array(COUNT * 3);
   const colors = new Float32Array(COUNT * 3);
 
@@ -342,7 +369,7 @@ addTwinkle(planet, 1.6, 0.5);
 world.add(planet);
 
 function buildRing() {
-  const COUNT = 7000;
+  const COUNT = 9500;
   const rInner = 12.5, rOuter = 25;
   const positions = new Float32Array(COUNT * 3);
   const colors = new Float32Array(COUNT * 3);
@@ -394,14 +421,14 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
 
 const FLOATER_COUNT = 2000;
 const RINGS = [
-  { radius: 27, ySpread: 2.2, yCenter: -6 },
-  { radius: 30, ySpread: 2.3, yCenter: -4 },
-  { radius: 33.5, ySpread: 2.5, yCenter: -2 },
-  { radius: 37, ySpread: 2.6, yCenter: 0 },
-  { radius: 40.5, ySpread: 2.8, yCenter: 2 },
-  { radius: 44, ySpread: 3, yCenter: 4 },
-  { radius: 48, ySpread: 3.2, yCenter: 6 },
-  { radius: 52, ySpread: 3.4, yCenter: 8 },
+  { radius: 27, ySpread: 3.6, yCenter: 0 },
+  { radius: 30, ySpread: 3.8, yCenter: 0 },
+  { radius: 33.5, ySpread: 4.0, yCenter: 0 },
+  { radius: 37, ySpread: 4.2, yCenter: 0 },
+  { radius: 40.5, ySpread: 4.4, yCenter: 0 },
+  { radius: 44, ySpread: 4.6, yCenter: 0 },
+  { radius: 48, ySpread: 4.8, yCenter: 0 },
+  { radius: 52, ySpread: 5.0, yCenter: 0 },
 ];
 const perRing = Math.ceil(FLOATER_COUNT / RINGS.length);
 
@@ -503,54 +530,6 @@ document.fonts && document.fonts.ready
   ? document.fonts.ready.then(() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })
   : (() => { titleMesh = buildTitle(TITLE_TEXT); world.add(titleMesh); })();
 
-function buildRingLabelTexture(text) {
-  const canvasEl = document.createElement('canvas');
-  const W = 900, H = 220;
-  canvasEl.width = W; canvasEl.height = H;
-  const ctx = canvasEl.getContext('2d');
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#ffd9de';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = "italic 700 84px 'Playfair Display', Georgia, serif";
-  ctx.shadowColor = 'rgba(255,70,90,0.65)';
-  ctx.shadowBlur = 22;
-  ctx.fillText(text, W / 2, H / 2);
-  const tex = new THREE.CanvasTexture(canvasEl);
-  tex.needsUpdate = true;
-  return { tex, aspect: W / H };
-}
-
-const textRingGroups = [];
-function buildTextRing(text, radius, yPos, count, spinDir) {
-  const { tex, aspect } = buildRingLabelTexture(text);
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
-  const h = 1.7;
-  const w = h * aspect;
-  const group = new THREE.Group();
-  for (let i = 0; i < count; i++) {
-    const angle = (i / count) * Math.PI * 2;
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
-    mesh.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
-    mesh.rotation.y = angle + Math.PI / 2;
-    group.add(mesh);
-  }
-  group.position.y = yPos;
-  group.userData = { baseY: yPos, spinSpeed: spinDir * (0.07 + Math.random() * 0.03), phase: Math.random() * Math.PI * 2 };
-  textRingGroups.push(group);
-  return group;
-}
-
-document.fonts && document.fonts.ready
-  ? document.fonts.ready.then(() => {
-      world.add(buildTextRing('LOPYUUU PIAAA', 10.5, 0.8, 6, 1));
-      world.add(buildTextRing('LOPYUUU PIAAA', 11.5, -0.8, 5, -1));
-    })
-  : (() => {
-      world.add(buildTextRing('LOPYUUU PIAAA', 10.5, 0.8, 6, 1));
-      world.add(buildTextRing('LOPYUUU PIAAA', 11.5, -0.8, 5, -1));
-    })();
-
 const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
 const easeOutBack = (x) => {
   const c1 = 1.70158, c3 = c1 + 1;
@@ -643,6 +622,7 @@ function hideLoading() {
 }
 
 getInBtn.addEventListener('click', () => {
+  playLesgoSound();
   welcomeCardEl.classList.remove('show');
   startIntro();
   setTimeout(() => {
@@ -724,11 +704,6 @@ function animate() {
 
   starsNear.rotation.y = t * 0.01;
   starsFar.rotation.y = -t * 0.006;
-
-  for (const g of textRingGroups) {
-    g.rotation.y += g.userData.spinSpeed * 0.016;
-    g.position.y = g.userData.baseY + Math.sin(t * 0.35 + g.userData.phase) * 0.6;
-  }
 
   for (const card of floaters) {
     const y = card.baseY + Math.sin(t * card.bobSpeed + card.phase) * card.bobAmp;
