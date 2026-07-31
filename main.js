@@ -317,7 +317,7 @@ function makeGlowSprite(colorHex, size, x, y, z, opacity) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 512, 512);
   const tex = new THREE.CanvasTexture(c);
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
   const sprite = new THREE.Sprite(mat);
   sprite.scale.set(size, size, 1);
   sprite.position.set(x, y, z);
@@ -417,7 +417,7 @@ function buildPlanet() {
     positions[i * 3 + 2] = (Math.random() - 0.5) * depth * SCALE * 0.34;
 
     const c = new THREE.Color();
-    if (s > 0.82) c.copy(bright); else if (s > 0.35) c.copy(mid); else c.copy(deep);
+    if (s < 0.5) c.copy(bright); else if (s < 0.92) c.copy(mid); else c.copy(deep);
     c.offsetHSL((Math.random() - 0.5) * 0.012, 0.04, (Math.random() - 0.5) * 0.05);
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
     filled++;
