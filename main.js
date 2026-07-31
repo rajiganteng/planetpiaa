@@ -310,7 +310,8 @@ function makeGlowSprite(colorHex, size, x, y, z, opacity) {
   const col = new THREE.Color(colorHex);
   const r = Math.round(col.r * 255), g = Math.round(col.g * 255), b = Math.round(col.b * 255);
   grad.addColorStop(0, `rgba(${r},${g},${b},${opacity})`);
-  grad.addColorStop(0.5, `rgba(${r},${g},${b},${opacity * 0.35})`);
+  grad.addColorStop(0.35, `rgba(${r},${g},${b},${opacity * 0.85})`);
+  grad.addColorStop(0.65, `rgba(${r},${g},${b},${opacity * 0.5})`);
   grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 256, 256);
@@ -322,18 +323,18 @@ function makeGlowSprite(colorHex, size, x, y, z, opacity) {
   return sprite;
 }
 
-const nebulaColors = [0x9b3fe0, 0x3fd67a, 0xe0b23f, 0xe0563f, 0x3f7fe0, 0xd63f9b];
+const nebulaColors = [0xaf3fff, 0x2fff8f, 0xffc72f, 0xff3f3f, 0x2f8fff, 0xff2fb0];
 const nebulaSprites = [];
 for (let i = 0; i < nebulaColors.length; i++) {
   const angle = (i / nebulaColors.length) * Math.PI * 2 + Math.random() * 0.6;
-  const dist = 260 + Math.random() * 120;
+  const dist = 220 + Math.random() * 100;
   const sprite = makeGlowSprite(
     nebulaColors[i],
-    170 + Math.random() * 110,
+    190 + Math.random() * 120,
     Math.cos(angle) * dist,
-    (Math.random() - 0.5) * 180,
+    (Math.random() - 0.5) * 170,
     Math.sin(angle) * dist,
-    0.5 + Math.random() * 0.25
+    0.85 + Math.random() * 0.15
   );
   sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05 };
   nebulaSprites.push(sprite);
@@ -380,7 +381,7 @@ function spawnShootingStar() {
 let nextShootingStarAt = 5;
 
 function buildPlanet() {
-  const COUNT = 20000;
+  const COUNT = 32000;
   const positions = new Float32Array(COUNT * 3);
   const colors = new Float32Array(COUNT * 3);
 
@@ -423,7 +424,7 @@ function buildPlanet() {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mat = new THREE.PointsMaterial({
-    size: 0.5, vertexColors: true, transparent: true, opacity: 0.98,
+    size: 0.58, vertexColors: true, transparent: true, opacity: 0.99,
     depthWrite: false, blending: THREE.NormalBlending, map: dotTexture,
   });
   const points = new THREE.Points(geo, mat);
@@ -697,6 +698,8 @@ let hidden = false;
 
 const welcomeCardEl = document.getElementById('welcomeCard');
 const getInBtn = document.getElementById('getInBtn');
+const loadingProgressEl = document.getElementById('loadingProgress');
+const LOADING_PHOTO_TOTAL = 20;
 
 function hideLoading() {
   if (hidden) return;
@@ -739,6 +742,8 @@ function startLoadingSequence() {
     const elapsed = performance.now() - PAGE_LOAD_START;
     const pct = Math.min(100, (elapsed / MIN_LOADING_MS) * 100);
     loadingFill.style.width = pct + '%';
+    const step = Math.min(LOADING_PHOTO_TOTAL, Math.floor((elapsed / MIN_LOADING_MS) * LOADING_PHOTO_TOTAL) + 1);
+    loadingProgressEl.textContent = `Mengunduh foto manusya cantiq ${step}/${LOADING_PHOTO_TOTAL}`;
     if (!hidden) requestAnimationFrame(tickLoadingBar);
   })();
 }
@@ -796,7 +801,7 @@ function animate() {
 
   for (const sp of nebulaSprites) {
     const mat = sp.material;
-    mat.opacity = 0.55 + 0.25 * Math.sin(t * sp.userData.speed + sp.userData.phase);
+    mat.opacity = 0.82 + 0.18 * Math.sin(t * sp.userData.speed + sp.userData.phase);
   }
 
   if (introFinished) {
