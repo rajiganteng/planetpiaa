@@ -298,23 +298,24 @@ function makeStars(count, rMin, rMax, size, color, opacity) {
 
 const starsNear = makeStars(2200, 90, 220, 1.5, 0xffffff, 0.9);
 const starsFar = makeStars(3500, 220, 420, 2.0, 0xaab4ff, 0.6);
-addTwinkle(starsNear, 1.3, 0.85);
-addTwinkle(starsFar, 1.0, 0.8);
+addTwinkle(starsNear, 1.1, 0.55);
+addTwinkle(starsFar, 0.9, 0.5);
 scene.add(starsNear, starsFar);
 
 function makeGlowSprite(colorHex, size, x, y, z, opacity) {
   const c = document.createElement('canvas');
-  c.width = c.height = 256;
+  c.width = c.height = 512;
   const ctx = c.getContext('2d');
-  const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
   const col = new THREE.Color(colorHex);
   const r = Math.round(col.r * 255), g = Math.round(col.g * 255), b = Math.round(col.b * 255);
   grad.addColorStop(0, `rgba(${r},${g},${b},${opacity})`);
-  grad.addColorStop(0.35, `rgba(${r},${g},${b},${opacity * 0.85})`);
-  grad.addColorStop(0.65, `rgba(${r},${g},${b},${opacity * 0.5})`);
+  grad.addColorStop(0.3, `rgba(${r},${g},${b},${opacity * 0.8})`);
+  grad.addColorStop(0.6, `rgba(${r},${g},${b},${opacity * 0.4})`);
+  grad.addColorStop(0.85, `rgba(${r},${g},${b},${opacity * 0.12})`);
   grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 256, 256);
+  ctx.fillRect(0, 0, 512, 512);
   const tex = new THREE.CanvasTexture(c);
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const sprite = new THREE.Sprite(mat);
@@ -327,14 +328,16 @@ const nebulaColors = [0xaf3fff, 0x2fff8f, 0xffc72f, 0xff3f3f, 0x2f8fff, 0xff2fb0
 const nebulaSprites = [];
 for (let i = 0; i < nebulaColors.length; i++) {
   const angle = (i / nebulaColors.length) * Math.PI * 2 + Math.random() * 0.6;
-  const dist = 220 + Math.random() * 100;
+  // kept well beyond the camera's max zoom-out distance (controls.maxDistance)
+  // so it always reads as a distant backdrop and never looms up close
+  const dist = 480 + Math.random() * 160;
   const sprite = makeGlowSprite(
     nebulaColors[i],
-    190 + Math.random() * 120,
+    340 + Math.random() * 180,
     Math.cos(angle) * dist,
-    (Math.random() - 0.5) * 170,
+    (Math.random() - 0.5) * 220,
     Math.sin(angle) * dist,
-    0.85 + Math.random() * 0.15
+    0.8 + Math.random() * 0.15
   );
   sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05 };
   nebulaSprites.push(sprite);
@@ -438,7 +441,7 @@ world.add(planet);
 
 function buildRing() {
   const COUNT = 9500;
-  const rInner = 12.5, rOuter = 25;
+  const rInner = 15.5, rOuter = 26;
   const positions = new Float32Array(COUNT * 3);
   const colors = new Float32Array(COUNT * 3);
   const c1 = new THREE.Color(0xe9ecff);
@@ -470,7 +473,9 @@ function buildRing() {
 
 const ring = buildRing();
 addTwinkle(ring, 1.6, 0.72);
+ring.renderOrder = 1;
 world.add(ring);
+planet.renderOrder = 2;
 
 const manager = new THREE.LoadingManager();
 manager.onError = (url) => console.warn('Gagal memuat:', url);
