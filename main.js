@@ -408,13 +408,14 @@ for (let i = 0; i < nebulaColors.length; i++) {
 }
 
 // A dedicated warm glow tucked just behind the heart planet — this is the
-// "spotlight" that should read as actually illuminating it. Kept tighter
-// (smaller, closer) and with its own higher opacity multiplier so it stays
-// focused on the planet instead of washing light over the whole scene.
-const planetBacklight = makeGlowSprite(0xff8f6f, 220, 0, 6, -75, 0.75);
+// "spotlight" that should read as actually illuminating it. It's added to
+// `world` (not `scene`) so it rotates and scales together with the planet;
+// adding it to the static scene was the bug that made it drift away from
+// the planet and end up floating among the photos as the scene spins.
+const planetBacklight = makeGlowSprite(0xffb347, 190, 0, 6, -70, 0.9);
 planetBacklight.userData = { phase: 0, speed: 0.04, opacityMult: 1.7 };
 nebulaSprites.push(planetBacklight);
-scene.add(planetBacklight);
+world.add(planetBacklight);
 
 const shootingStarGeo = new THREE.BufferGeometry();
 const SHOOTING_STAR_SEGMENTS = 28;
@@ -571,9 +572,9 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
 // natural gradient that blends into the rest of the photos.
 
 const RING_OUTER = 26; // must match buildRing()
-const FIELD_R_MIN = RING_OUTER + 3.5; // clear gap so nothing touches/overlaps the white dots
-const FIELD_R_MAX = 120;
-const FIELD_R_BIAS = 2.15; // >1 = denser near FIELD_R_MIN, thinning out naturally further away
+const FIELD_R_MIN = RING_OUTER + 6; // bigger clear gap before photos start
+const FIELD_R_MAX = 125;
+const FIELD_R_BIAS = 1.45; // gentler bias than before — still denser near FIELD_R_MIN but not clustered/touching
 
 const FLOATER_COUNT = 6000;
 
@@ -627,7 +628,7 @@ for (let i = 0; i < FLOATER_COUNT; i++) {
   // tighter vertical spread near the ring (keeps the "boundary" feel there),
   // opening up gradually further out for natural depth
   const baseY = (Math.random() - 0.5) * (2.6 + depthT * 11);
-  const scale = 0.85 + Math.random() * 1.0;
+  const scale = 0.75 + Math.random() * 0.85;
   const posX = Math.cos(angle) * radius;
   const posZ = Math.sin(angle) * radius;
   const facingY = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.7;
