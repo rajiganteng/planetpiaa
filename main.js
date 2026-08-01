@@ -355,16 +355,6 @@ function makePlanetTexture(baseColor) {
     ctx.fillStyle = `rgba(0,0,0,${0.06 + Math.random() * 0.08})`;
     ctx.fillRect(0, y, RES, h);
   }
-  // lit-from-one-side shading so it reads as a sphere, not a flat disc —
-  // pushed to a stronger contrast so the gradation is clearly visible even
-  // on a small, distant planet instead of reading as a flat, monotone ball
-  const grad = ctx.createLinearGradient(0, 0, RES, 0);
-  grad.addColorStop(0, 'rgba(255,255,255,0.55)');
-  grad.addColorStop(0.42, 'rgba(255,255,255,0.05)');
-  grad.addColorStop(0.6, 'rgba(0,0,0,0.2)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.85)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, RES, RES);
   const tex = new THREE.CanvasTexture(c);
   tex.needsUpdate = true;
   return tex;
@@ -391,13 +381,6 @@ function makeCraterTexture(baseColor) {
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
   }
-  const grad2 = ctx.createLinearGradient(0, 0, RES, 0);
-  grad2.addColorStop(0, 'rgba(255,255,255,0.55)');
-  grad2.addColorStop(0.42, 'rgba(255,255,255,0.05)');
-  grad2.addColorStop(0.6, 'rgba(0,0,0,0.2)');
-  grad2.addColorStop(1, 'rgba(0,0,0,0.85)');
-  ctx.fillStyle = grad2;
-  ctx.fillRect(0, 0, RES, RES);
   const tex = new THREE.CanvasTexture(c);
   tex.needsUpdate = true;
   return tex;
@@ -425,21 +408,17 @@ function makeGasGiantTexture(baseColor, bandColor) {
   spotGrad.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = spotGrad;
   ctx.beginPath(); ctx.ellipse(sx, sy, RES * 0.09, RES * 0.055, 0, 0, Math.PI * 2); ctx.fill();
-  const grad2 = ctx.createLinearGradient(0, 0, RES, 0);
-  grad2.addColorStop(0, 'rgba(255,255,255,0.55)');
-  grad2.addColorStop(0.42, 'rgba(255,255,255,0.05)');
-  grad2.addColorStop(0.6, 'rgba(0,0,0,0.2)');
-  grad2.addColorStop(1, 'rgba(0,0,0,0.85)');
-  ctx.fillStyle = grad2;
-  ctx.fillRect(0, 0, RES, RES);
   const tex = new THREE.CanvasTexture(c);
   tex.needsUpdate = true;
   return tex;
 }
 
-// A plain, ring-free planet — for variety alongside the ringed one.
+// A plain, ring-free planet — for variety alongside the ringed one. Uses a
+// real lit material (like the photo cards do) instead of a baked-on
+// gradient, so the dark side is genuinely dark and consistent from any
+// angle, lit by the scene's existing key/fill lights.
 function makePlanet(texture, size, x, y, z) {
-  const mat = new THREE.MeshBasicMaterial({ map: texture, fog: false });
+  const mat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9, metalness: 0.05, fog: false });
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 28, 28), mat);
   mesh.position.set(x, y, z);
   return mesh;
@@ -471,7 +450,7 @@ function makeRadialBandTexture(colorHex, warm) {
 // scenery, doesn't interact with the photos or the heart.
 function makeRingedPlanet(baseColor, ringColor, size, x, y, z, tilt) {
   const group = new THREE.Group();
-  const sphereMat = new THREE.MeshBasicMaterial({ map: makePlanetTexture(baseColor), fog: false });
+  const sphereMat = new THREE.MeshStandardMaterial({ map: makePlanetTexture(baseColor), roughness: 0.9, metalness: 0.05, fog: false });
   const sphere = new THREE.Mesh(new THREE.SphereGeometry(size, 28, 28), sphereMat);
   group.add(sphere);
   const ringMat = new THREE.MeshBasicMaterial({
@@ -585,11 +564,21 @@ function makeGlowSprite(colorHex, size, x, y, z, opacity) {
   const col = new THREE.Color(colorHex);
   const r = Math.round(col.r * 255), g = Math.round(col.g * 255), b = Math.round(col.b * 255);
   const cx = RES / 2, cy = RES / 2, maxD = RES / 2;
+  const seed = Math.random() * 1000;
   for (let py = 0; py < RES; py++) {
     for (let px = 0; px < RES; px++) {
       const dx = px - cx, dy = py - cy;
       const d = Math.min(1, Math.sqrt(dx * dx + dy * dy) / maxD);
-      const a = Math.max(0, opacity * Math.pow(1 - d, 2.2));
+      const ang = Math.atan2(dy, dx);
+      const envelope = Math.pow(1 - d, 2.2);
+      // layered turbulence gives the glow wispy, cloud-like internal
+      // structure instead of a perfectly flat radial gradient — still
+      // bounded by `envelope` so it always fades cleanly to 0 at the edge
+      const wisp1 = Math.sin(ang * 4 + d * 8 + seed);
+      const wisp2 = Math.sin(ang * 9 - d * 15 + seed * 1.6);
+      const wisp3 = Math.sin(px * 0.05 + py * 0.04 + seed * 2.2);
+      const wisp = 0.62 + 0.22 * wisp1 + 0.1 * wisp2 + 0.12 * wisp3;
+      const a = Math.max(0, opacity * envelope * Math.max(0.3, wisp));
       const idx = (py * RES + px) * 4;
       img.data[idx] = r;
       img.data[idx + 1] = g;
