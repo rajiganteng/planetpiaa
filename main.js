@@ -194,13 +194,6 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 if ('outputColorSpace' in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-// iOS/mobile browsers can silently drop the WebGL context when the app is
-// minimized (backgrounded) and then restored, especially with a heavier
-// scene like this one. Without handling this, the canvas comes back with
-// stale/empty GPU buffers — most visibly the heart planet's vertex-colored
-// points rendering solid black. preventDefault() on "lost" tells the
-// browser we want it restored; on "restored" we force every geometry
-// attribute and material/texture to re-upload to the GPU.
 renderer.domElement.addEventListener('webglcontextlost', (e) => {
   e.preventDefault();
 }, false);
@@ -245,8 +238,6 @@ controls.target.set(0, 2, 0);
 const world = new THREE.Group();
 scene.add(world);
 
-// Only the photo cards use a lit material (MeshStandardMaterial); everything
-// else in the scene (points, sprites) is unlit and unaffected by these.
 const ambientLight = new THREE.AmbientLight(0xfff6ec, 0.65);
 scene.add(ambientLight);
 const keyLight = new THREE.DirectionalLight(0xfff2d8, 1.0);
@@ -348,7 +339,7 @@ function makePlanetTexture(baseColor) {
   const col = new THREE.Color(baseColor);
   ctx.fillStyle = `rgb(${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)})`;
   ctx.fillRect(0, 0, RES, RES);
-  // soft horizontal bands for a bit of surface texture
+
   for (let i = 0; i < 7; i++) {
     const y = (i / 7) * RES + Math.random() * 10;
     const h = 6 + Math.random() * 16;
@@ -368,8 +359,7 @@ function makeCraterTexture(baseColor) {
   const col = new THREE.Color(baseColor);
   ctx.fillStyle = `rgb(${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)})`;
   ctx.fillRect(0, 0, RES, RES);
-  // scattered crater pits — dark rim, faint highlight, fading to nothing —
-  // gives a rocky/icy moon look instead of the banded gas-giant style
+
   for (let i = 0; i < 28; i++) {
     const cx = Math.random() * RES, cy = Math.random() * RES;
     const r = 4 + Math.random() * 15;
@@ -401,7 +391,7 @@ function makeGasGiantTexture(baseColor, bandColor) {
     ctx.fillStyle = `rgba(${Math.round(bcol.r * 255)},${Math.round(bcol.g * 255)},${Math.round(bcol.b * 255)},${0.18 + Math.random() * 0.22})`;
     ctx.fillRect(0, y, RES, h);
   }
-  // a small storm-spot accent, like Jupiter's Great Red Spot
+
   const sx = RES * 0.62, sy = RES * 0.55;
   const spotGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, RES * 0.1);
   spotGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
@@ -413,10 +403,6 @@ function makeGasGiantTexture(baseColor, bandColor) {
   return tex;
 }
 
-// A plain, ring-free planet — for variety alongside the ringed one. Uses a
-// real lit material (like the photo cards do) instead of a baked-on
-// gradient, so the dark side is genuinely dark and consistent from any
-// angle, lit by the scene's existing key/fill lights.
 function makePlanet(texture, size, x, y, z) {
   const mat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9, metalness: 0.05, fog: false });
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 28, 28), mat);
@@ -446,8 +432,6 @@ function makeRadialBandTexture(colorHex, warm) {
   return tex;
 }
 
-// A small ringed planet sitting far in the background — purely decorative
-// scenery, doesn't interact with the photos or the heart.
 function makeRingedPlanet(baseColor, ringColor, size, x, y, z, tilt) {
   const group = new THREE.Group();
   const sphereMat = new THREE.MeshStandardMaterial({ map: makePlanetTexture(baseColor), roughness: 0.9, metalness: 0.05, fog: false });
@@ -465,8 +449,6 @@ function makeRingedPlanet(baseColor, ringColor, size, x, y, z, tilt) {
   return group;
 }
 
-// A distant black hole: an opaque core blocking the starfield behind it,
-// ringed by a warm, glowing accretion disk.
 function makeBlackHole(size, x, y, z, tilt) {
   const group = new THREE.Group();
   const core = new THREE.Mesh(
@@ -486,9 +468,6 @@ function makeBlackHole(size, x, y, z, tilt) {
   return group;
 }
 
-// A distant spiral galaxy — same canvas-glow technique as the nebula
-// sprites, but with spiral arms baked into the alpha instead of a plain
-// radial falloff.
 function makeGalaxySprite(colorHex, size, x, y, z, opacity) {
   const RES = 512;
   const c = document.createElement('canvas');
@@ -496,25 +475,21 @@ function makeGalaxySprite(colorHex, size, x, y, z, opacity) {
   const ctx = c.getContext('2d');
   const img = ctx.createImageData(RES, RES);
   const col = new THREE.Color(colorHex);
-  const core0 = new THREE.Color(0xfff3d6); // warm bright galactic core
+  const core0 = new THREE.Color(0xfff3d6);
   const cx = RES / 2, cy = RES / 2, maxD = RES / 2;
   for (let py = 0; py < RES; py++) {
     for (let px = 0; px < RES; px++) {
       const dx = (px - cx) / maxD, dy = (py - cy) / maxD;
       const d = Math.min(1, Math.sqrt(dx * dx + dy * dy));
       const ang = Math.atan2(dy, dx);
-      // Smooth circular envelope, same falloff style as the working nebula
-      // sprites — guaranteed to reach 0 alpha right at the texture edge no
-      // matter what the spiral modulation does, so there's never a hard
-      // box-shaped cutoff.
+
       const envelope = Math.pow(Math.max(0, 1 - d), 2.2);
-      // two overlapping spiral frequencies + a little per-pixel grain reads
-      // as fine structure/dust lanes instead of one smooth swirl
+
       const spiral = 0.5 + 0.32 * Math.sin(ang * 2 + d * 13) + 0.18 * Math.sin(ang * 5 - d * 21);
       const grain = 0.9 + 0.1 * Math.sin(px * 12.9898 + py * 78.233) * Math.sin(px * 4.7 - py * 3.1);
       const armStrength = Math.max(0, spiral) * Math.pow(Math.max(0, 1 - d), 1.3) * grain;
       const a = Math.max(0, Math.min(1, opacity * envelope * (0.35 + 0.75 * armStrength)));
-      // blend from a bright warm core out into the arm color
+
       const coreMix = Math.pow(Math.max(0, 1 - d * 2.6), 2);
       const rr = core0.r * coreMix + col.r * (1 - coreMix);
       const gg = core0.g * coreMix + col.g * (1 - coreMix);
@@ -533,17 +508,12 @@ function makeGalaxySprite(colorHex, size, x, y, z, opacity) {
   tex.generateMipmaps = false;
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
   const sprite = new THREE.Sprite(mat);
-  // the oval galaxy shape comes only from this non-uniform scale now — the
-  // texture itself is a clean circle, so there's a single, smooth source
-  // of squish instead of two stacked ones fighting each other
+
   sprite.scale.set(size, size * 0.6, 1);
   sprite.position.set(x, y, z);
   return sprite;
 }
 
-// Placed well past the photo field (radius ~125) and away from the
-// reserved planet-light angle (-90°) so none of it competes with the heart
-// or the photos — this is background scenery, visible through the gaps.
 scene.add(makePlanet(makeGasGiantTexture(0xd97a52, 0xffe0ad), 26, Math.cos(0.7) * 360, -55, Math.sin(0.7) * 360));
 scene.add(makeRingedPlanet(0xd9a066, 0xf0d9b0, 34, Math.cos(2.5) * 480, 70, Math.sin(2.5) * 480, 0.45));
 scene.add(makeGalaxySprite(0x8ec9ff, 320, Math.cos(-2.1) * 560, 95, Math.sin(-2.1) * 560, 0.62));
@@ -551,11 +521,6 @@ scene.add(makePlanet(makeCraterTexture(0x9fb3c9), 17, Math.cos(4.4) * 300, 45, M
 
 function makeGlowSprite(colorHex, size, x, y, z, opacity) {
 
-
-  // NOTE: ctx.createRadialGradient() gets dithered by some browsers (notably
-  // iOS Safari) to avoid banding, which shows up as visible speckle/dot
-  // noise once the texture is stretched across a huge sprite. Writing the
-  // pixels ourselves avoids that dithering entirely, giving a clean glow.
   const RES = 512;
   const c = document.createElement('canvas');
   c.width = c.height = RES;
@@ -589,31 +554,23 @@ function makeGlowSprite(colorHex, size, x, y, z, opacity) {
 }
 
 const nebulaColors = [
-  0x9b5cff, // violet
-  0x33e6a8, // emerald teal
-  0xffb23f, // warm gold
-  0xff5f7e, // rose red
-  0x4f8dff, // ocean blue
-  0xff5cd0, // magenta pink
-  0x6de1ff, // cyan
-  0xffd166, // soft amber
-  0xb388ff, // lavender
+  0x9b5cff,
+  0x33e6a8,
+  0xffb23f,
+  0xff5f7e,
+  0x4f8dff,
+  0xff5cd0,
+  0x6de1ff,
+  0xffd166,
+  0xb388ff,
 ];
-// Index 6 (cyan) sits in the angle slot nearest "directly behind the
-// planet" — skip generating it here and use that reserved slot for the
-// dedicated planet-lighting nebula below instead. Without this, the random
-// jitter could occasionally place it right next to the dedicated sprite,
-// which is what caused the two glows to clump together.
+
 const PLANET_LIGHT_SLOT = 6;
 const nebulaSprites = [];
 for (let i = 0; i < nebulaColors.length; i++) {
   if (i === PLANET_LIGHT_SLOT) continue;
   const angle = (i / nebulaColors.length) * Math.PI * 2 + Math.random() * 0.5;
-  // Pushed well past the photo field (which only reaches radius ~125) and
-  // shrunk down — these used to be sized 380-540 at distance 320-460, which
-  // gave them an angular size bigger than the camera's own field of view,
-  // so they washed straight over the foreground photos instead of sitting
-  // behind everything as a distant backdrop glow.
+
   const dist = 480 + Math.random() * 160;
   const sprite = makeGlowSprite(
     nebulaColors[i],
@@ -628,12 +585,8 @@ for (let i = 0; i < nebulaColors.length; i++) {
   scene.add(sprite);
 }
 
-// The dedicated warm light behind the planet, in its own reserved angle
-// slot so it never overlaps another nebula. Pulled in closer than the
-// background ring so its edge visibly grazes the top of the heart, while
-// staying above/behind it — not centered over the planet or the photos.
 {
-  const angle = -Math.PI / 2; // straight behind the heart, camera-forward
+  const angle = -Math.PI / 2;
   const dist = 260;
   const behindPlanet = makeGlowSprite(0xffb23f, 170, Math.cos(angle) * dist, 16, Math.sin(angle) * dist, 0.62);
   behindPlanet.userData = { phase: 0, speed: 0.05, opacityMult: 1.8 };
@@ -668,7 +621,6 @@ function spawnShootingStar() {
   const startDist = 190 + Math.random() * 90;
   const start = new THREE.Vector3(Math.cos(startAngle) * startDist, startHeight, Math.sin(startAngle) * startDist);
 
-  // aim through a point close to the planet, not just a distant background streak
   const target = new THREE.Vector3((Math.random() - 0.5) * 16, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 16);
   const dir = target.clone().sub(start).normalize();
 
@@ -710,8 +662,6 @@ function buildPlanet() {
     positions[i * 3 + 1] = yRaw * SCALE;
     positions[i * 3 + 2] = (Math.random() - 0.5) * depth * SCALE * 0.34;
 
-    // same red tone everywhere (matches the outer/edge color) so there's
-    // no radial-gradient "circle" showing through the middle of the heart
     const c = mid.clone().lerp(deep, Math.random() * 0.35);
     c.offsetHSL((Math.random() - 0.5) * 0.012, 0.04, (Math.random() - 0.5) * 0.05);
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
@@ -787,18 +737,10 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
   photoTextures.push(tex);
 }
 
-// --- Photo layout ---
-// Nothing floats near the heart planet itself — every photo sits outside
-// the white ring. Density is naturally highest just past the ring (so it
-// still reads as a boundary around it) and smoothly thins out further away,
-// using one continuous random distribution instead of separate zones, so
-// there's no hard seam and no perfectly-touching "grid" look — just a
-// natural gradient that blends into the rest of the photos.
-
-const RING_OUTER = 26; // must match buildRing()
-const FIELD_R_MIN = RING_OUTER + 6; // bigger clear gap before photos start
+const RING_OUTER = 26;
+const FIELD_R_MIN = RING_OUTER + 6;
 const FIELD_R_MAX = 125;
-const FIELD_R_BIAS = 1.45; // gentler bias than before — still denser near FIELD_R_MIN but not clustered/touching
+const FIELD_R_BIAS = 1.45;
 
 const FLOATER_COUNT = 6000;
 
@@ -811,8 +753,7 @@ const perPhotoCapacity = Math.ceil(FLOATER_COUNT / PHOTO_COUNT) + 1;
 const instancedMeshes = photoTextures.map((tex) => {
   const photoMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, metalness: 0.04 });
   const edgeMat = new THREE.MeshStandardMaterial({ color: 0xf3ecdf, roughness: 0.75, metalness: 0.02 });
-  // BoxGeometry face group order: +x,-x,+y,-y,+z,-z — front/back get the
-  // photo, the 4 thin side faces get a plain card-stock edge color.
+
   const materials = [edgeMat, edgeMat, edgeMat, edgeMat, photoMat, photoMat];
   const mesh = new THREE.InstancedMesh(cardGeometry, materials, perPhotoCapacity);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -849,8 +790,7 @@ for (let i = 0; i < FLOATER_COUNT; i++) {
   const depthT = Math.pow(Math.random(), FIELD_R_BIAS);
   const radius = FIELD_R_MIN + depthT * (FIELD_R_MAX - FIELD_R_MIN);
   const angle = Math.random() * Math.PI * 2;
-  // tighter vertical spread near the ring (keeps the "boundary" feel there),
-  // opening up gradually further out for natural depth
+
   const baseY = (Math.random() - 0.5) * (2.6 + depthT * 11);
   const scale = 0.75 + Math.random() * 0.85;
   const posX = Math.cos(angle) * radius;
@@ -1093,13 +1033,7 @@ function animate() {
   const spinUnwindP = introStart !== null
     ? Math.min(1, (performance.now() - introStart) / 1000 / 3.5)
     : 1;
-  // spinT only starts counting once the fly-in has actually landed, instead
-  // of using the raw clock (which keeps running from page load through the
-  // gate/loading screens). That old behaviour meant the heart planet could
-  // have already spun an arbitrary, unpredictable amount by the time the
-  // camera arrived — sometimes landing beside it instead of facing it
-  // head-on. Freezing the spin during the intro guarantees the camera
-  // always ends up looking straight at the planet's front.
+
   const spinT = introFinished ? (performance.now() - introFinishedAt) / 1000 : 0;
   world.rotation.y = spinT * 0.09 + (1 - easeOutCubic(spinUnwindP)) * Math.PI * 3;
   world.rotation.x = Math.sin(spinT * 0.12) * 0.10;
