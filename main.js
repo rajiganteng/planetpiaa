@@ -194,6 +194,32 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 if ('outputColorSpace' in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
 
+// iOS/mobile browsers can silently drop the WebGL context when the app is
+// minimized (backgrounded) and then restored, especially with a heavier
+// scene like this one. Without handling this, the canvas comes back with
+// stale/empty GPU buffers — most visibly the heart planet's vertex-colored
+// points rendering solid black. preventDefault() on "lost" tells the
+// browser we want it restored; on "restored" we force every geometry
+// attribute and material/texture to re-upload to the GPU.
+renderer.domElement.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+}, false);
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+  scene.traverse((obj) => {
+    if (obj.geometry) {
+      const attrs = obj.geometry.attributes;
+      for (const key in attrs) attrs[key].needsUpdate = true;
+    }
+    if (obj.material) {
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const m of mats) {
+        m.needsUpdate = true;
+        if (m.map) m.map.needsUpdate = true;
+      }
+    }
+  });
+}, false);
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050818);
 scene.fog = new THREE.FogExp2(0x050818, 0.0032);
@@ -536,20 +562,21 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
 
 // --- Photo layout: 3 zones ---
 // 1) inner field  — loose floaters close around the heart planet
-// 2) fence        — a dense wall of photos standing right on the white
-//                    particle ring, so the ring reads as fenced/walled off
-//                    instead of an empty gap between planet and photos
-// 3) outer field   — the rest of the photos, pulled in much closer together
-//                    than before so they don't feel scattered too far apart
+// 2) fence        — a dense wall of photos standing just OUTSIDE the white
+//                    particle ring (never overlapping it), so the ring stays
+//                    clean and the photos form a boundary/curtain around it
+// 3) outer field   — the rest of the photos, kept close together so they
+//                    don't feel scattered too far apart
 
 const RING_INNER = 15.5, RING_OUTER = 26; // must match buildRing()
 
 const INNER_R_MIN = 4, INNER_R_MAX = 13.5;
-const INNER_COUNT = 700;
+const INNER_COUNT = 900;
 
-const FENCE_RADII = [17.5, 20.5, 23.5];
-const FENCE_HEIGHTS = [-1.15, 0, 1.15];
-const FENCE_SPACING = 1.05; // world units between fence-card centers, tuned so neighboring cards overlap slightly and close any gaps
+const FENCE_R_START = RING_OUTER + 2; // starts clearly outside the white dots, never covering them
+const FENCE_RADII = [FENCE_R_START, FENCE_R_START + 3, FENCE_R_START + 6];
+const FENCE_HEIGHTS = [-1.3, -0.4, 0.5, 1.4]; // 4 stacked rows for a taller, more solid wall
+const FENCE_SPACING = 1.0; // world units between fence-card centers, tuned so neighboring cards overlap slightly and close any gaps
 const fencePositions = [];
 for (const fr of FENCE_RADII) {
   const perRing = Math.max(24, Math.ceil((2 * Math.PI * fr) / FENCE_SPACING));
@@ -561,9 +588,9 @@ for (const fr of FENCE_RADII) {
 }
 const FENCE_COUNT = fencePositions.length;
 
-const OUTER_R_MIN = RING_OUTER + 2;
-const OUTER_R_MAX = 85; // was 190 — keeps the outer photos from feeling too spread out
-const OUTER_COUNT = 2200;
+const OUTER_R_MIN = FENCE_RADII[FENCE_RADII.length - 1] + 3; // stays outside the fence too
+const OUTER_R_MAX = 95;
+const OUTER_COUNT = 2760;
 
 const FLOATER_COUNT = INNER_COUNT + FENCE_COUNT + OUTER_COUNT;
 
