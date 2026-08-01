@@ -412,8 +412,8 @@ for (let i = 0; i < nebulaColors.length; i++) {
 // `world` (not `scene`) so it rotates and scales together with the planet;
 // adding it to the static scene was the bug that made it drift away from
 // the planet and end up floating among the photos as the scene spins.
-const planetBacklight = makeGlowSprite(0xffb347, 190, 0, 6, -70, 0.9);
-planetBacklight.userData = { phase: 0, speed: 0.04, opacityMult: 1.7 };
+const planetBacklight = makeGlowSprite(0xffb347, 58, 0, 6, -46, 0.85);
+planetBacklight.userData = { phase: 0, speed: 0.04, opacityMult: 1.1 };
 nebulaSprites.push(planetBacklight);
 world.add(planetBacklight);
 
@@ -763,6 +763,7 @@ const STAR_NEAR_OP = 0.9, STAR_FAR_OP = 0.6;
 
 let introStart = null;
 let introFinished = false;
+let introFinishedAt = null;
 function startIntro() { introStart = performance.now(); startBgmPlayback(); }
 
 window.addEventListener('resize', () => {
@@ -855,6 +856,7 @@ function animate() {
 
     if (introP >= 1) {
       introFinished = true;
+      introFinishedAt = performance.now();
       camera.up.set(0, 1, 0);
       world.scale.setScalar(1);
       starsNear.material.opacity = STAR_NEAR_OP;
@@ -867,9 +869,17 @@ function animate() {
   const spinUnwindP = introStart !== null
     ? Math.min(1, (performance.now() - introStart) / 1000 / 3.5)
     : 1;
-  world.rotation.y = t * 0.09 + (1 - easeOutCubic(spinUnwindP)) * Math.PI * 3;
-  world.rotation.x = Math.sin(t * 0.12) * 0.10;
-  world.rotation.z = Math.cos(t * 0.09) * 0.05;
+  // spinT only starts counting once the fly-in has actually landed, instead
+  // of using the raw clock (which keeps running from page load through the
+  // gate/loading screens). That old behaviour meant the heart planet could
+  // have already spun an arbitrary, unpredictable amount by the time the
+  // camera arrived — sometimes landing beside it instead of facing it
+  // head-on. Freezing the spin during the intro guarantees the camera
+  // always ends up looking straight at the planet's front.
+  const spinT = introFinished ? (performance.now() - introFinishedAt) / 1000 : 0;
+  world.rotation.y = spinT * 0.09 + (1 - easeOutCubic(spinUnwindP)) * Math.PI * 3;
+  world.rotation.x = Math.sin(spinT * 0.12) * 0.10;
+  world.rotation.z = Math.sin(spinT * 0.09) * 0.05;
 
   if (titleMesh) {
     const parentQuat = new THREE.Quaternion().setFromEuler(world.rotation);
