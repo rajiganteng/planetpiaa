@@ -210,7 +210,7 @@ controls.zoomSpeed = 1.3;
 controls.rotateSpeed = 0.85;
 controls.minDistance = 16;
 controls.maxDistance = 265;
-controls.minPolarAngle = Math.PI * 0.12;
+controls.minPolarAngle = Math.PI * 0.28;
 controls.maxPolarAngle = Math.PI * 0.86;
 controls.autoRotate = false;
 controls.target.set(0, 2, 0);
@@ -303,20 +303,29 @@ addTwinkle(starsFar, 0.9, 0.5);
 scene.add(starsNear, starsFar);
 
 function makeGlowSprite(colorHex, size, x, y, z, opacity) {
+  // Higher-res canvas + many smooth gradient stops avoids the visible
+  // speckle/dither dots that show up when a small gradient texture is
+  // stretched across a very large sprite.
+  const RES = 1024;
   const c = document.createElement('canvas');
-  c.width = c.height = 512;
+  c.width = c.height = RES;
   const ctx = c.getContext('2d');
-  const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+  const cx = RES / 2;
+  const grad = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
   const col = new THREE.Color(colorHex);
   const r = Math.round(col.r * 255), g = Math.round(col.g * 255), b = Math.round(col.b * 255);
-  grad.addColorStop(0, `rgba(${r},${g},${b},${opacity})`);
-  grad.addColorStop(0.3, `rgba(${r},${g},${b},${opacity * 0.8})`);
-  grad.addColorStop(0.6, `rgba(${r},${g},${b},${opacity * 0.4})`);
-  grad.addColorStop(0.85, `rgba(${r},${g},${b},${opacity * 0.12})`);
-  grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  const STOPS = 12;
+  for (let s = 0; s <= STOPS; s++) {
+    const p = s / STOPS;
+    // smooth quadratic falloff instead of a few hard-edged stops
+    const a = opacity * Math.pow(1 - p, 2.2);
+    grad.addColorStop(p, `rgba(${r},${g},${b},${Math.max(0, a).toFixed(4)})`);
+  }
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 512, 512);
+  ctx.fillRect(0, 0, RES, RES);
   const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
   const sprite = new THREE.Sprite(mat);
   sprite.scale.set(size, size, 1);
@@ -333,11 +342,11 @@ for (let i = 0; i < nebulaColors.length; i++) {
   const dist = 480 + Math.random() * 160;
   const sprite = makeGlowSprite(
     nebulaColors[i],
-    340 + Math.random() * 180,
+    300 + Math.random() * 140,
     Math.cos(angle) * dist,
     (Math.random() - 0.5) * 220,
     Math.sin(angle) * dist,
-    0.8 + Math.random() * 0.15
+    0.4 + Math.random() * 0.1
   );
   sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05 };
   nebulaSprites.push(sprite);
@@ -645,16 +654,16 @@ function sphericalToPos(az, pol, r) {
 }
 
 const FLY_KEYFRAMES = [
-  { t: 0.00, az: REST_AZIMUTH + 3.4, pol: REST_POLAR - 0.50, r: REST_RADIUS + 260 },
-  { t: 0.10, az: REST_AZIMUTH + 2.5, pol: REST_POLAR - 0.42, r: REST_RADIUS + 150 },
-  { t: 0.20, az: REST_AZIMUTH + 1.6, pol: REST_POLAR - 0.15, r: REST_RADIUS + 70 },
-  { t: 0.30, az: REST_AZIMUTH + 0.85, pol: REST_POLAR + 0.20, r: REST_RADIUS + 15 },
-  { t: 0.40, az: REST_AZIMUTH + 0.30, pol: REST_POLAR - 0.10, r: REST_RADIUS - 25 },
-  { t: 0.50, az: REST_AZIMUTH - 0.50, pol: REST_POLAR + 0.25, r: REST_RADIUS + 35 },
-  { t: 0.60, az: REST_AZIMUTH - 1.00, pol: REST_POLAR - 0.05, r: REST_RADIUS - 15 },
-  { t: 0.70, az: REST_AZIMUTH - 0.40, pol: REST_POLAR + 0.12, r: REST_RADIUS + 20 },
-  { t: 0.80, az: REST_AZIMUTH + 0.15, pol: REST_POLAR - 0.04, r: REST_RADIUS - 8 },
-  { t: 0.90, az: REST_AZIMUTH - 0.04, pol: REST_POLAR + 0.02, r: REST_RADIUS + 5 },
+  { t: 0.00, az: REST_AZIMUTH + 3.4, pol: REST_POLAR - 0.28, r: REST_RADIUS + 90 },
+  { t: 0.10, az: REST_AZIMUTH + 2.5, pol: REST_POLAR - 0.24, r: REST_RADIUS + 60 },
+  { t: 0.20, az: REST_AZIMUTH + 1.6, pol: REST_POLAR - 0.10, r: REST_RADIUS + 35 },
+  { t: 0.30, az: REST_AZIMUTH + 0.85, pol: REST_POLAR + 0.15, r: REST_RADIUS + 10 },
+  { t: 0.40, az: REST_AZIMUTH + 0.30, pol: REST_POLAR - 0.07, r: REST_RADIUS - 18 },
+  { t: 0.50, az: REST_AZIMUTH - 0.50, pol: REST_POLAR + 0.18, r: REST_RADIUS + 22 },
+  { t: 0.60, az: REST_AZIMUTH - 1.00, pol: REST_POLAR - 0.04, r: REST_RADIUS - 10 },
+  { t: 0.70, az: REST_AZIMUTH - 0.40, pol: REST_POLAR + 0.09, r: REST_RADIUS + 14 },
+  { t: 0.80, az: REST_AZIMUTH + 0.15, pol: REST_POLAR - 0.03, r: REST_RADIUS - 6 },
+  { t: 0.90, az: REST_AZIMUTH - 0.04, pol: REST_POLAR + 0.02, r: REST_RADIUS + 4 },
   { t: 1.00, az: REST_AZIMUTH, pol: REST_POLAR, r: REST_RADIUS },
 ];
 
@@ -806,7 +815,7 @@ function animate() {
 
   for (const sp of nebulaSprites) {
     const mat = sp.material;
-    mat.opacity = 0.82 + 0.18 * Math.sin(t * sp.userData.speed + sp.userData.phase);
+    mat.opacity = 0.32 + 0.1 * Math.sin(t * sp.userData.speed + sp.userData.phase);
   }
 
   if (introFinished) {
