@@ -390,17 +390,19 @@ const nebulaColors = [
 const nebulaSprites = [];
 for (let i = 0; i < nebulaColors.length; i++) {
   const angle = (i / nebulaColors.length) * Math.PI * 2 + Math.random() * 0.5;
-  // only a touch brighter than the original ambient look — this is
-  // background glow, the focused light on the planet comes from the
-  // dedicated backlight sprite below, not from brightening everything.
-  const dist = 320 + Math.random() * 140;
+  // Pushed well past the photo field (which only reaches radius ~125) and
+  // shrunk down — these used to be sized 380-540 at distance 320-460, which
+  // gave them an angular size bigger than the camera's own field of view,
+  // so they washed straight over the foreground photos instead of sitting
+  // behind everything as a distant backdrop glow.
+  const dist = 480 + Math.random() * 160;
   const sprite = makeGlowSprite(
     nebulaColors[i],
-    380 + Math.random() * 160,
+    150 + Math.random() * 70,
     Math.cos(angle) * dist,
     (Math.random() - 0.5) * 160,
     Math.sin(angle) * dist,
-    0.30 + Math.random() * 0.08
+    0.24 + Math.random() * 0.07
   );
   sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05, opacityMult: 1 };
   nebulaSprites.push(sprite);
