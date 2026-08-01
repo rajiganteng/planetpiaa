@@ -355,11 +355,14 @@ function makePlanetTexture(baseColor) {
     ctx.fillStyle = `rgba(0,0,0,${0.06 + Math.random() * 0.08})`;
     ctx.fillRect(0, y, RES, h);
   }
-  // lit-from-one-side shading so it reads as a sphere, not a flat disc
+  // lit-from-one-side shading so it reads as a sphere, not a flat disc —
+  // pushed to a stronger contrast so the gradation is clearly visible even
+  // on a small, distant planet instead of reading as a flat, monotone ball
   const grad = ctx.createLinearGradient(0, 0, RES, 0);
-  grad.addColorStop(0, 'rgba(255,255,255,0.32)');
-  grad.addColorStop(0.45, 'rgba(255,255,255,0)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.6)');
+  grad.addColorStop(0, 'rgba(255,255,255,0.55)');
+  grad.addColorStop(0.42, 'rgba(255,255,255,0.05)');
+  grad.addColorStop(0.6, 'rgba(0,0,0,0.2)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.85)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, RES, RES);
   const tex = new THREE.CanvasTexture(c);
@@ -443,13 +446,16 @@ function makeGalaxySprite(colorHex, size, x, y, z, opacity) {
   const cx = RES / 2, cy = RES / 2, maxD = RES / 2;
   for (let py = 0; py < RES; py++) {
     for (let px = 0; px < RES; px++) {
-      const dx = (px - cx) / maxD, dy = (py - cy) * 0.6 / maxD;
+      const dx = (px - cx) / maxD, dy = (py - cy) / maxD;
       const d = Math.min(1, Math.sqrt(dx * dx + dy * dy));
       const ang = Math.atan2(dy, dx);
-      const spiral = 0.5 + 0.5 * Math.sin(ang * 3 + d * 11);
-      const core = Math.pow(Math.max(0, 1 - d), 3);
-      const arms = spiral * Math.pow(Math.max(0, 1 - d), 1.5) * 0.65;
-      const a = Math.max(0, Math.min(1, opacity * (core * 1.3 + arms)));
+      // Smooth circular envelope, same falloff style as the working nebula
+      // sprites — guaranteed to reach 0 alpha right at the texture edge no
+      // matter what the spiral modulation does, so there's never a hard
+      // box-shaped cutoff.
+      const envelope = Math.pow(Math.max(0, 1 - d), 2.4);
+      const spiral = 0.55 + 0.45 * Math.sin(ang * 3 + d * 11);
+      const a = Math.max(0, Math.min(1, opacity * envelope * (0.55 + 0.45 * spiral)));
       const idx = (py * RES + px) * 4;
       img.data[idx] = r0; img.data[idx + 1] = g0; img.data[idx + 2] = b0;
       img.data[idx + 3] = Math.round(a * 255);
@@ -462,6 +468,9 @@ function makeGalaxySprite(colorHex, size, x, y, z, opacity) {
   tex.generateMipmaps = false;
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
   const sprite = new THREE.Sprite(mat);
+  // the oval galaxy shape comes only from this non-uniform scale now — the
+  // texture itself is a clean circle, so there's a single, smooth source
+  // of squish instead of two stacked ones fighting each other
   sprite.scale.set(size, size * 0.6, 1);
   sprite.position.set(x, y, z);
   return sprite;
@@ -470,8 +479,8 @@ function makeGalaxySprite(colorHex, size, x, y, z, opacity) {
 // Placed well past the photo field (radius ~125) and away from the
 // reserved planet-light angle (-90°) so none of it competes with the heart
 // or the photos — this is background scenery, visible through the gaps.
-scene.add(makeRingedPlanet(0xd9a066, 0xf0d9b0, 22, Math.cos(0.7) * 360, -55, Math.sin(0.7) * 360, 0.3));
-scene.add(makeBlackHole(46, Math.cos(2.5) * 480, 70, Math.sin(2.5) * 480, 0.45));
+scene.add(makeBlackHole(30, Math.cos(0.7) * 360, -55, Math.sin(0.7) * 360, 0.3));
+scene.add(makeRingedPlanet(0xd9a066, 0xf0d9b0, 34, Math.cos(2.5) * 480, 70, Math.sin(2.5) * 480, 0.45));
 scene.add(makeGalaxySprite(0x8ec9ff, 210, Math.cos(-2.1) * 560, 95, Math.sin(-2.1) * 560, 0.5));
 scene.add(makeRingedPlanet(0x8fb0ff, 0xd8e6ff, 14, Math.cos(4.4) * 300, 45, Math.sin(4.4) * 300, -0.4));
 
