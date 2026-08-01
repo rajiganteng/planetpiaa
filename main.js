@@ -342,7 +342,7 @@ for (let i = 0; i < nebulaColors.length; i++) {
   const dist = 480 + Math.random() * 160;
   const sprite = makeGlowSprite(
     nebulaColors[i],
-    300 + Math.random() * 140,
+    460 + Math.random() * 260,
     Math.cos(angle) * dist,
     (Math.random() - 0.5) * 220,
     Math.sin(angle) * dist,
@@ -399,7 +399,6 @@ function buildPlanet() {
 
   const deep = new THREE.Color(0x5a000d);
   const mid = new THREE.Color(0xb8001f);
-  const bright = new THREE.Color(0xff2b46);
 
   const SCALE = 8.6;
   const BOUND_X = 1.35, BOUND_Y_TOP = 1.25, BOUND_Y_BOTTOM = 1.5;
@@ -415,8 +414,6 @@ function buildPlanet() {
     const inside = a * a * a - x * x * yImplicit * yImplicit * yImplicit <= 0;
     if (!inside) continue;
 
-    const r = Math.sqrt(x * x + yRaw * yRaw) / BOUND_Y_BOTTOM;
-    const s = Math.min(1, r);
     const localWidth = 1 - Math.min(1, Math.abs(yRaw) / BOUND_Y_BOTTOM) * 0.4;
     const depth = (0.5 + Math.random() * 0.5) * 2.6 * localWidth;
 
@@ -425,8 +422,9 @@ function buildPlanet() {
     positions[i * 3 + 1] = yRaw * SCALE;
     positions[i * 3 + 2] = (Math.random() - 0.5) * depth * SCALE * 0.34;
 
-    const c = new THREE.Color();
-    if (s < 0.5) c.copy(bright); else if (s < 0.92) c.copy(mid); else c.copy(deep);
+    // same red tone everywhere (matches the outer/edge color) so there's
+    // no radial-gradient "circle" showing through the middle of the heart
+    const c = mid.clone().lerp(deep, Math.random() * 0.35);
     c.offsetHSL((Math.random() - 0.5) * 0.012, 0.04, (Math.random() - 0.5) * 0.05);
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
     filled++;
