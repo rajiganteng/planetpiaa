@@ -930,6 +930,15 @@ let introFinished = false;
 let introFinishedAt = null;
 function startIntro() { introStart = performance.now(); startBgmPlayback(); }
 
+const ORBIT_POLAR = Math.max(0.3, REST_POLAR - 0.62);
+const ORBIT_RADIUS = REST_RADIUS * 0.86;
+const ORBIT_IN = 1.6;
+const ORBIT_SPIN = 8.5;
+const ORBIT_OUT = 1.6;
+const ORBIT_TOTAL = ORBIT_IN + ORBIT_SPIN + ORBIT_OUT;
+let orbitStart = null;
+let orbitDone = false;
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -964,7 +973,7 @@ getInBtn.addEventListener('click', () => {
     setTimeout(() => {
       hintEl.classList.add('show');
       setTimeout(() => { hintEl.classList.remove('show'); }, 4200);
-    }, INTRO_DUR * 1000 * 0.95);
+    }, (INTRO_DUR + ORBIT_TOTAL) * 1000 * 0.97);
   }, LESGO_DELAY_MS);
 });
 
@@ -1021,12 +1030,42 @@ function animate() {
     if (introP >= 1) {
       introFinished = true;
       introFinishedAt = performance.now();
+      orbitStart = performance.now();
       camera.up.set(0, 1, 0);
       world.scale.setScalar(1);
       starsNear.material.opacity = STAR_NEAR_OP;
       starsFar.material.opacity = STAR_FAR_OP;
+    }
+  }
+
+  if (introFinished && !orbitDone) {
+    const oe = (performance.now() - orbitStart) / 1000;
+    let az, pol, r;
+    if (oe < ORBIT_IN) {
+      const p = easeInOutCubic(oe / ORBIT_IN);
+      az = REST_AZIMUTH;
+      pol = THREE.MathUtils.lerp(REST_POLAR, ORBIT_POLAR, p);
+      r = THREE.MathUtils.lerp(REST_RADIUS, ORBIT_RADIUS, p);
+    } else if (oe < ORBIT_IN + ORBIT_SPIN) {
+      const p = (oe - ORBIT_IN) / ORBIT_SPIN;
+      az = REST_AZIMUTH + p * Math.PI * 2;
+      pol = ORBIT_POLAR;
+      r = ORBIT_RADIUS;
+    } else if (oe < ORBIT_TOTAL) {
+      const p = easeInOutCubic((oe - ORBIT_IN - ORBIT_SPIN) / ORBIT_OUT);
+      az = REST_AZIMUTH + Math.PI * 2;
+      pol = THREE.MathUtils.lerp(ORBIT_POLAR, REST_POLAR, p);
+      r = THREE.MathUtils.lerp(ORBIT_RADIUS, REST_RADIUS, p);
+    } else {
+      orbitDone = true;
+      controls.target.copy(TARGET_FIXED);
       controls.enabled = true;
       controls.update();
+      az = null;
+    }
+    if (az !== null) {
+      camera.position.copy(sphericalToPos(az, pol, r));
+      camera.lookAt(TARGET_FIXED);
     }
   }
 
