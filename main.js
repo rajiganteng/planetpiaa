@@ -218,6 +218,17 @@ controls.target.set(0, 2, 0);
 const world = new THREE.Group();
 scene.add(world);
 
+// Only the photo cards use a lit material (MeshStandardMaterial); everything
+// else in the scene (points, sprites) is unlit and unaffected by these.
+const ambientLight = new THREE.AmbientLight(0xfff6ec, 0.65);
+scene.add(ambientLight);
+const keyLight = new THREE.DirectionalLight(0xfff2d8, 1.0);
+keyLight.position.set(40, 70, 35);
+scene.add(keyLight);
+const fillLight = new THREE.DirectionalLight(0x9fc2ff, 0.4);
+fillLight.position.set(-45, -15, -30);
+scene.add(fillLight);
+
 function makeDotTexture() {
   const size = 256;
   const c = document.createElement('canvas');
@@ -339,20 +350,31 @@ function makeGlowSprite(colorHex, size, x, y, z, opacity) {
   return sprite;
 }
 
-const nebulaColors = [0xaf3fff, 0x2fff8f, 0xffc72f, 0xff3f3f, 0x2f8fff, 0xff2fb0];
+const nebulaColors = [
+  0x9b5cff, // violet
+  0x33e6a8, // emerald teal
+  0xffb23f, // warm gold
+  0xff5f7e, // rose red
+  0x4f8dff, // ocean blue
+  0xff5cd0, // magenta pink
+  0x6de1ff, // cyan
+  0xffd166, // soft amber
+  0xb388ff, // lavender
+];
 const nebulaSprites = [];
 for (let i = 0; i < nebulaColors.length; i++) {
-  const angle = (i / nebulaColors.length) * Math.PI * 2 + Math.random() * 0.6;
-  // kept well beyond the camera's max zoom-out distance (controls.maxDistance)
-  // so it always reads as a distant backdrop and never looms up close
-  const dist = 480 + Math.random() * 160;
+  const angle = (i / nebulaColors.length) * Math.PI * 2 + Math.random() * 0.5;
+  // brought in closer than before so the glow visibly washes over the
+  // planet/ring, while still staying outside the floater shell (radius
+  // up to FLOATER_R_MAX ~100) so it never clips through the scene
+  const dist = 175 + Math.random() * 75;
   const sprite = makeGlowSprite(
     nebulaColors[i],
-    560 + Math.random() * 300,
+    620 + Math.random() * 320,
     Math.cos(angle) * dist,
-    (Math.random() - 0.5) * 220,
+    (Math.random() - 0.5) * 150,
     Math.sin(angle) * dist,
-    0.62 + Math.random() * 0.15
+    0.72 + Math.random() * 0.16
   );
   sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05 };
   nebulaSprites.push(sprite);
@@ -506,26 +528,22 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
 }
 
 const FLOATER_COUNT = 4000;
-const RINGS = [
-  { radius: 27, ySpread: 3.6, yCenter: 0 },
-  { radius: 30, ySpread: 3.8, yCenter: 0 },
-  { radius: 33.5, ySpread: 4.0, yCenter: 0 },
-  { radius: 37, ySpread: 4.2, yCenter: 0 },
-  { radius: 40.5, ySpread: 4.4, yCenter: 0 },
-  { radius: 44, ySpread: 4.6, yCenter: 0 },
-  { radius: 48, ySpread: 4.8, yCenter: 0 },
-  { radius: 52, ySpread: 5.0, yCenter: 0 },
-];
-const perRing = Math.ceil(FLOATER_COUNT / RINGS.length);
+const FLOATER_R_MIN = 20;
+const FLOATER_R_MAX = 100;
 
 const CARD_W = 1;
 const CARD_H = CARD_W * (16 / 9);
-const cardGeometry = new THREE.PlaneGeometry(CARD_W, CARD_H);
+const CARD_DEPTH = 0.07;
+const cardGeometry = new THREE.BoxGeometry(CARD_W, CARD_H, CARD_DEPTH);
 
 const perPhotoCapacity = Math.ceil(FLOATER_COUNT / PHOTO_COUNT) + 1;
 const instancedMeshes = photoTextures.map((tex) => {
-  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
-  const mesh = new THREE.InstancedMesh(cardGeometry, mat, perPhotoCapacity);
+  const photoMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, metalness: 0.04 });
+  const edgeMat = new THREE.MeshStandardMaterial({ color: 0xf3ecdf, roughness: 0.75, metalness: 0.02 });
+  // BoxGeometry face group order: +x,-x,+y,-y,+z,-z — front/back get the
+  // photo, the 4 thin side faces get a plain card-stock edge color.
+  const materials = [edgeMat, edgeMat, edgeMat, edgeMat, photoMat, photoMat];
+  const mesh = new THREE.InstancedMesh(cardGeometry, materials, perPhotoCapacity);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.count = 0;
   world.add(mesh);
@@ -552,52 +570,48 @@ for (let i = 1; i < photoAssignment.length; i++) {
 const floaters = [];
 const dummy = new THREE.Object3D();
 
-let floaterIndex = 0;
-for (let ringIdx = 0; ringIdx < RINGS.length; ringIdx++) {
-  const ring = RINGS[ringIdx];
+for (let i = 0; i < FLOATER_COUNT; i++) {
+  const photoIdx = photoAssignment[i];
+  const mesh = instancedMeshes[photoIdx];
+  const instanceId = mesh.count++;
 
-  const ringOffset = (ringIdx / RINGS.length) * Math.PI * 2 * 0.33;
+  // Bias toward the inner shell (near the heart) but with a long tail
+  // reaching all the way out to FLOATER_R_MAX, so depth feels natural
+  // instead of a handful of neat, evenly-spaced concentric rings.
+  const depthT = Math.pow(Math.random(), 0.62);
+  const radius = FLOATER_R_MIN + depthT * (FLOATER_R_MAX - FLOATER_R_MIN);
+  const angle = Math.random() * Math.PI * 2;
+  const ySpread = 3.2 + depthT * 9.5;
+  const baseY = (Math.random() - 0.5) * ySpread;
+  const scale = 0.8 + Math.random() * 1.0;
 
-  for (let k = 0; k < perRing && floaterIndex < FLOATER_COUNT; k++, floaterIndex++) {
-    const photoIdx = photoAssignment[floaterIndex];
-    const mesh = instancedMeshes[photoIdx];
-    const instanceId = mesh.count++;
+  const facingY = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.6;
+  const tiltX = (Math.random() - 0.5) * 0.26;
+  const tiltZ = (Math.random() - 0.5) * 0.22;
 
-    const scale = 1.05 + Math.random() * 0.6;
+  const card = {
+    mesh, instanceId,
+    posX: Math.cos(angle) * radius,
+    posZ: Math.sin(angle) * radius,
+    scale,
+    baseY,
+    baseRotX: tiltX,
+    baseRotZ: tiltZ,
+    curRotY: facingY,
+    spinSpeed: 0.05 + Math.random() * 0.06,
+    phase: Math.random() * Math.PI * 2,
+    bobSpeed: 0.4 + Math.random() * 0.5,
+    bobAmp: 0.5 + Math.random() * 0.6,
+    wobbleAmp: 0.06 + Math.random() * 0.05,
+  };
 
-    const slice = (Math.PI * 2) / perRing;
-    const angle = ringOffset + k * slice + (Math.random() - 0.5) * slice * 0.5;
-    const radius = ring.radius + (Math.random() - 0.5) * 3;
-    const baseY = ring.yCenter + (Math.random() - 0.5) * ring.ySpread;
+  dummy.position.set(card.posX, card.baseY, card.posZ);
+  dummy.rotation.set(card.baseRotX, card.curRotY, card.baseRotZ);
+  dummy.scale.setScalar(card.scale);
+  dummy.updateMatrix();
+  mesh.setMatrixAt(instanceId, dummy.matrix);
 
-    const facingY = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.5;
-    const tiltX = (Math.random() - 0.5) * 0.22;
-    const tiltZ = (Math.random() - 0.5) * 0.18;
-
-    const card = {
-      mesh, instanceId,
-      posX: Math.cos(angle) * radius,
-      posZ: Math.sin(angle) * radius,
-      scale,
-      baseY,
-      baseRotX: tiltX,
-      baseRotZ: tiltZ,
-      curRotY: facingY,
-      spinSpeed: 0.05 + Math.random() * 0.06,
-      phase: Math.random() * Math.PI * 2,
-      bobSpeed: 0.4 + Math.random() * 0.5,
-      bobAmp: 0.5 + Math.random() * 0.6,
-      wobbleAmp: 0.06 + Math.random() * 0.05,
-    };
-
-    dummy.position.set(card.posX, card.baseY, card.posZ);
-    dummy.rotation.set(card.baseRotX, card.curRotY, card.baseRotZ);
-    dummy.scale.setScalar(card.scale);
-    dummy.updateMatrix();
-    mesh.setMatrixAt(instanceId, dummy.matrix);
-
-    floaters.push(card);
-  }
+  floaters.push(card);
 }
 instancedMeshes.forEach((m) => { m.instanceMatrix.needsUpdate = true; });
 
@@ -819,7 +833,7 @@ function animate() {
 
   for (const sp of nebulaSprites) {
     const mat = sp.material;
-    mat.opacity = 0.58 + 0.12 * Math.sin(t * sp.userData.speed + sp.userData.phase);
+    mat.opacity = 0.7 + 0.14 * Math.sin(t * sp.userData.speed + sp.userData.phase);
   }
 
   if (introFinished) {
