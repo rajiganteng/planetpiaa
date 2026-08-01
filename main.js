@@ -209,7 +209,7 @@ controls.enableZoom = true;
 controls.zoomSpeed = 1.3;
 controls.rotateSpeed = 0.85;
 controls.minDistance = 16;
-controls.maxDistance = 265;
+controls.maxDistance = 520;
 controls.minPolarAngle = Math.PI * 0.28;
 controls.maxPolarAngle = Math.PI * 0.86;
 controls.autoRotate = false;
@@ -364,17 +364,17 @@ const nebulaColors = [
 const nebulaSprites = [];
 for (let i = 0; i < nebulaColors.length; i++) {
   const angle = (i / nebulaColors.length) * Math.PI * 2 + Math.random() * 0.5;
-  // brought in closer than before so the glow visibly washes over the
-  // planet/ring, while still staying outside the floater shell (radius
-  // up to FLOATER_R_MAX ~100) so it never clips through the scene
-  const dist = 175 + Math.random() * 75;
+  // far enough out that overlapping glows (additive blending) never stack
+  // up into a blown-out white screen, but still closer than the very
+  // first version so some tint reaches the planet/ring
+  const dist = 340 + Math.random() * 160;
   const sprite = makeGlowSprite(
     nebulaColors[i],
-    620 + Math.random() * 320,
+    360 + Math.random() * 180,
     Math.cos(angle) * dist,
-    (Math.random() - 0.5) * 150,
+    (Math.random() - 0.5) * 170,
     Math.sin(angle) * dist,
-    0.72 + Math.random() * 0.16
+    0.26 + Math.random() * 0.08
   );
   sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05 };
   nebulaSprites.push(sprite);
@@ -528,8 +528,8 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
 }
 
 const FLOATER_COUNT = 4000;
-const FLOATER_R_MIN = 20;
-const FLOATER_R_MAX = 100;
+const FLOATER_R_MIN = 4;
+const FLOATER_R_MAX = 190;
 
 const CARD_W = 1;
 const CARD_H = CARD_W * (16 / 9);
@@ -575,13 +575,13 @@ for (let i = 0; i < FLOATER_COUNT; i++) {
   const mesh = instancedMeshes[photoIdx];
   const instanceId = mesh.count++;
 
-  // Bias toward the inner shell (near the heart) but with a long tail
-  // reaching all the way out to FLOATER_R_MAX, so depth feels natural
-  // instead of a handful of neat, evenly-spaced concentric rings.
-  const depthT = Math.pow(Math.random(), 0.62);
+  // Bias toward the inner shell (near the heart) so the area right around
+  // it is fully covered with photos instead of being an empty dotted gap,
+  // still with a long tail out to FLOATER_R_MAX for natural depth.
+  const depthT = Math.pow(Math.random(), 0.45);
   const radius = FLOATER_R_MIN + depthT * (FLOATER_R_MAX - FLOATER_R_MIN);
   const angle = Math.random() * Math.PI * 2;
-  const ySpread = 3.2 + depthT * 9.5;
+  const ySpread = 6 + depthT * 13;
   const baseY = (Math.random() - 0.5) * ySpread;
   const scale = 0.8 + Math.random() * 1.0;
 
@@ -833,7 +833,7 @@ function animate() {
 
   for (const sp of nebulaSprites) {
     const mat = sp.material;
-    mat.opacity = 0.7 + 0.14 * Math.sin(t * sp.userData.speed + sp.userData.phase);
+    mat.opacity = 0.27 + 0.07 * Math.sin(t * sp.userData.speed + sp.userData.phase);
   }
 
   if (introFinished) {
