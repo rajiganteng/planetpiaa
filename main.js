@@ -404,7 +404,7 @@ for (let i = 0; i < nebulaColors.length; i++) {
     Math.sin(angle) * dist,
     0.38 + Math.random() * 0.10
   );
-  sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05, opacityMult: 1 };
+  sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05, opacityMult: 1.6 };
   nebulaSprites.push(sprite);
   scene.add(sprite);
 }
@@ -417,8 +417,8 @@ for (let i = 0; i < nebulaColors.length; i++) {
 // Kept close and small (just outside the ring, radius ~26) so it lights the
 // planet's silhouette without sitting on top of the heart itself or
 // reaching out into the photo field that starts at radius ~32.
-const planetBacklight = makeGlowSprite(0xffa726, 40, 0, 6, -28, 0.95);
-planetBacklight.userData = { phase: 0, speed: 0.04, opacityMult: 1.35 };
+const planetBacklight = makeGlowSprite(0xffa726, 42, 0, 24, -20, 0.95);
+planetBacklight.userData = { phase: 0, speed: 0.04, opacityMult: 1.5 };
 nebulaSprites.push(planetBacklight);
 world.add(planetBacklight);
 
@@ -897,7 +897,7 @@ function animate() {
   for (const sp of nebulaSprites) {
     const mat = sp.material;
     const mult = sp.userData.opacityMult || 1;
-    mat.opacity = mult * (0.34 + 0.09 * Math.sin(t * sp.userData.speed + sp.userData.phase));
+    mat.opacity = mult * (0.55 + 0.12 * Math.sin(t * sp.userData.speed + sp.userData.phase));
   }
 
   if (introFinished) {
