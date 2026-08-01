@@ -303,28 +303,34 @@ addTwinkle(starsFar, 0.9, 0.5);
 scene.add(starsNear, starsFar);
 
 function makeGlowSprite(colorHex, size, x, y, z, opacity) {
-  // Higher-res canvas + many smooth gradient stops avoids the visible
-  // speckle/dither dots that show up when a small gradient texture is
-  // stretched across a very large sprite.
-  const RES = 1024;
+  // NOTE: ctx.createRadialGradient() gets dithered by some browsers (notably
+  // iOS Safari) to avoid banding, which shows up as visible speckle/dot
+  // noise once the texture is stretched across a huge sprite. Writing the
+  // pixels ourselves avoids that dithering entirely, giving a clean glow.
+  const RES = 512;
   const c = document.createElement('canvas');
   c.width = c.height = RES;
   const ctx = c.getContext('2d');
-  const cx = RES / 2;
-  const grad = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
+  const img = ctx.createImageData(RES, RES);
   const col = new THREE.Color(colorHex);
   const r = Math.round(col.r * 255), g = Math.round(col.g * 255), b = Math.round(col.b * 255);
-  const STOPS = 12;
-  for (let s = 0; s <= STOPS; s++) {
-    const p = s / STOPS;
-    // smooth quadratic falloff instead of a few hard-edged stops
-    const a = opacity * Math.pow(1 - p, 2.2);
-    grad.addColorStop(p, `rgba(${r},${g},${b},${Math.max(0, a).toFixed(4)})`);
+  const cx = RES / 2, cy = RES / 2, maxD = RES / 2;
+  for (let py = 0; py < RES; py++) {
+    for (let px = 0; px < RES; px++) {
+      const dx = px - cx, dy = py - cy;
+      const d = Math.min(1, Math.sqrt(dx * dx + dy * dy) / maxD);
+      const a = Math.max(0, opacity * Math.pow(1 - d, 2.2));
+      const idx = (py * RES + px) * 4;
+      img.data[idx] = r;
+      img.data[idx + 1] = g;
+      img.data[idx + 2] = b;
+      img.data[idx + 3] = Math.round(a * 255);
+    }
   }
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, RES, RES);
+  ctx.putImageData(img, 0, 0);
   const tex = new THREE.CanvasTexture(c);
   tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = false;
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
   const sprite = new THREE.Sprite(mat);
@@ -342,11 +348,11 @@ for (let i = 0; i < nebulaColors.length; i++) {
   const dist = 480 + Math.random() * 160;
   const sprite = makeGlowSprite(
     nebulaColors[i],
-    460 + Math.random() * 260,
+    560 + Math.random() * 300,
     Math.cos(angle) * dist,
     (Math.random() - 0.5) * 220,
     Math.sin(angle) * dist,
-    0.4 + Math.random() * 0.1
+    0.62 + Math.random() * 0.15
   );
   sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05 };
   nebulaSprites.push(sprite);
@@ -499,7 +505,7 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
   photoTextures.push(tex);
 }
 
-const FLOATER_COUNT = 2000;
+const FLOATER_COUNT = 4000;
 const RINGS = [
   { radius: 27, ySpread: 3.6, yCenter: 0 },
   { radius: 30, ySpread: 3.8, yCenter: 0 },
@@ -813,7 +819,7 @@ function animate() {
 
   for (const sp of nebulaSprites) {
     const mat = sp.material;
-    mat.opacity = 0.32 + 0.1 * Math.sin(t * sp.userData.speed + sp.userData.phase);
+    mat.opacity = 0.58 + 0.12 * Math.sin(t * sp.userData.speed + sp.userData.phase);
   }
 
   if (introFinished) {
