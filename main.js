@@ -370,6 +370,81 @@ function makePlanetTexture(baseColor) {
   return tex;
 }
 
+function makeCraterTexture(baseColor) {
+  const RES = 256;
+  const c = document.createElement('canvas');
+  c.width = RES; c.height = RES;
+  const ctx = c.getContext('2d');
+  const col = new THREE.Color(baseColor);
+  ctx.fillStyle = `rgb(${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)})`;
+  ctx.fillRect(0, 0, RES, RES);
+  // scattered crater pits — dark rim, faint highlight, fading to nothing —
+  // gives a rocky/icy moon look instead of the banded gas-giant style
+  for (let i = 0; i < 28; i++) {
+    const cx = Math.random() * RES, cy = Math.random() * RES;
+    const r = 4 + Math.random() * 15;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    grad.addColorStop(0, 'rgba(0,0,0,0.32)');
+    grad.addColorStop(0.7, 'rgba(0,0,0,0.16)');
+    grad.addColorStop(0.85, 'rgba(255,255,255,0.14)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  }
+  const grad2 = ctx.createLinearGradient(0, 0, RES, 0);
+  grad2.addColorStop(0, 'rgba(255,255,255,0.55)');
+  grad2.addColorStop(0.42, 'rgba(255,255,255,0.05)');
+  grad2.addColorStop(0.6, 'rgba(0,0,0,0.2)');
+  grad2.addColorStop(1, 'rgba(0,0,0,0.85)');
+  ctx.fillStyle = grad2;
+  ctx.fillRect(0, 0, RES, RES);
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function makeGasGiantTexture(baseColor, bandColor) {
+  const RES = 256;
+  const c = document.createElement('canvas');
+  c.width = RES; c.height = RES;
+  const ctx = c.getContext('2d');
+  const col = new THREE.Color(baseColor);
+  ctx.fillStyle = `rgb(${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)})`;
+  ctx.fillRect(0, 0, RES, RES);
+  const bcol = new THREE.Color(bandColor);
+  for (let i = 0; i < 14; i++) {
+    const y = (i / 14) * RES + Math.sin(i * 1.3) * 6;
+    const h = (RES / 14) * (0.4 + Math.random() * 0.3);
+    ctx.fillStyle = `rgba(${Math.round(bcol.r * 255)},${Math.round(bcol.g * 255)},${Math.round(bcol.b * 255)},${0.18 + Math.random() * 0.22})`;
+    ctx.fillRect(0, y, RES, h);
+  }
+  // a small storm-spot accent, like Jupiter's Great Red Spot
+  const sx = RES * 0.62, sy = RES * 0.55;
+  const spotGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, RES * 0.1);
+  spotGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
+  spotGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = spotGrad;
+  ctx.beginPath(); ctx.ellipse(sx, sy, RES * 0.09, RES * 0.055, 0, 0, Math.PI * 2); ctx.fill();
+  const grad2 = ctx.createLinearGradient(0, 0, RES, 0);
+  grad2.addColorStop(0, 'rgba(255,255,255,0.55)');
+  grad2.addColorStop(0.42, 'rgba(255,255,255,0.05)');
+  grad2.addColorStop(0.6, 'rgba(0,0,0,0.2)');
+  grad2.addColorStop(1, 'rgba(0,0,0,0.85)');
+  ctx.fillStyle = grad2;
+  ctx.fillRect(0, 0, RES, RES);
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// A plain, ring-free planet — for variety alongside the ringed one.
+function makePlanet(texture, size, x, y, z) {
+  const mat = new THREE.MeshBasicMaterial({ map: texture, fog: false });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 28, 28), mat);
+  mesh.position.set(x, y, z);
+  return mesh;
+}
+
 function makeRadialBandTexture(colorHex, warm) {
   const RES = 256;
   const c = document.createElement('canvas');
@@ -442,7 +517,7 @@ function makeGalaxySprite(colorHex, size, x, y, z, opacity) {
   const ctx = c.getContext('2d');
   const img = ctx.createImageData(RES, RES);
   const col = new THREE.Color(colorHex);
-  const r0 = Math.round(col.r * 255), g0 = Math.round(col.g * 255), b0 = Math.round(col.b * 255);
+  const core0 = new THREE.Color(0xfff3d6); // warm bright galactic core
   const cx = RES / 2, cy = RES / 2, maxD = RES / 2;
   for (let py = 0; py < RES; py++) {
     for (let px = 0; px < RES; px++) {
@@ -453,11 +528,22 @@ function makeGalaxySprite(colorHex, size, x, y, z, opacity) {
       // sprites — guaranteed to reach 0 alpha right at the texture edge no
       // matter what the spiral modulation does, so there's never a hard
       // box-shaped cutoff.
-      const envelope = Math.pow(Math.max(0, 1 - d), 2.4);
-      const spiral = 0.55 + 0.45 * Math.sin(ang * 3 + d * 11);
-      const a = Math.max(0, Math.min(1, opacity * envelope * (0.55 + 0.45 * spiral)));
+      const envelope = Math.pow(Math.max(0, 1 - d), 2.2);
+      // two overlapping spiral frequencies + a little per-pixel grain reads
+      // as fine structure/dust lanes instead of one smooth swirl
+      const spiral = 0.5 + 0.32 * Math.sin(ang * 2 + d * 13) + 0.18 * Math.sin(ang * 5 - d * 21);
+      const grain = 0.9 + 0.1 * Math.sin(px * 12.9898 + py * 78.233) * Math.sin(px * 4.7 - py * 3.1);
+      const armStrength = Math.max(0, spiral) * Math.pow(Math.max(0, 1 - d), 1.3) * grain;
+      const a = Math.max(0, Math.min(1, opacity * envelope * (0.35 + 0.75 * armStrength)));
+      // blend from a bright warm core out into the arm color
+      const coreMix = Math.pow(Math.max(0, 1 - d * 2.6), 2);
+      const rr = core0.r * coreMix + col.r * (1 - coreMix);
+      const gg = core0.g * coreMix + col.g * (1 - coreMix);
+      const bb = core0.b * coreMix + col.b * (1 - coreMix);
       const idx = (py * RES + px) * 4;
-      img.data[idx] = r0; img.data[idx + 1] = g0; img.data[idx + 2] = b0;
+      img.data[idx] = Math.round(rr * 255);
+      img.data[idx + 1] = Math.round(gg * 255);
+      img.data[idx + 2] = Math.round(bb * 255);
       img.data[idx + 3] = Math.round(a * 255);
     }
   }
@@ -479,10 +565,10 @@ function makeGalaxySprite(colorHex, size, x, y, z, opacity) {
 // Placed well past the photo field (radius ~125) and away from the
 // reserved planet-light angle (-90°) so none of it competes with the heart
 // or the photos — this is background scenery, visible through the gaps.
-scene.add(makeBlackHole(30, Math.cos(0.7) * 360, -55, Math.sin(0.7) * 360, 0.3));
+scene.add(makePlanet(makeGasGiantTexture(0xd97a52, 0xffe0ad), 26, Math.cos(0.7) * 360, -55, Math.sin(0.7) * 360));
 scene.add(makeRingedPlanet(0xd9a066, 0xf0d9b0, 34, Math.cos(2.5) * 480, 70, Math.sin(2.5) * 480, 0.45));
-scene.add(makeGalaxySprite(0x8ec9ff, 210, Math.cos(-2.1) * 560, 95, Math.sin(-2.1) * 560, 0.5));
-scene.add(makeRingedPlanet(0x8fb0ff, 0xd8e6ff, 14, Math.cos(4.4) * 300, 45, Math.sin(4.4) * 300, -0.4));
+scene.add(makeGalaxySprite(0x8ec9ff, 320, Math.cos(-2.1) * 560, 95, Math.sin(-2.1) * 560, 0.62));
+scene.add(makePlanet(makeCraterTexture(0x9fb3c9), 17, Math.cos(4.4) * 300, 45, Math.sin(4.4) * 300));
 
 function makeGlowSprite(colorHex, size, x, y, z, opacity) {
 
