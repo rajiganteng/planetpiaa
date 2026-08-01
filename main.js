@@ -390,27 +390,29 @@ const nebulaColors = [
 const nebulaSprites = [];
 for (let i = 0; i < nebulaColors.length; i++) {
   const angle = (i / nebulaColors.length) * Math.PI * 2 + Math.random() * 0.5;
-  // closer and brighter than before so the glow visibly washes light onto
-  // the planet/ring instead of staying a faint, distant backdrop
-  const dist = 260 + Math.random() * 140;
+  // only a touch brighter than the original ambient look — this is
+  // background glow, the focused light on the planet comes from the
+  // dedicated backlight sprite below, not from brightening everything.
+  const dist = 320 + Math.random() * 140;
   const sprite = makeGlowSprite(
     nebulaColors[i],
-    420 + Math.random() * 200,
+    380 + Math.random() * 160,
     Math.cos(angle) * dist,
-    (Math.random() - 0.5) * 150,
+    (Math.random() - 0.5) * 160,
     Math.sin(angle) * dist,
-    0.42 + Math.random() * 0.12
+    0.30 + Math.random() * 0.08
   );
-  sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05 };
+  sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05, opacityMult: 1 };
   nebulaSprites.push(sprite);
   scene.add(sprite);
 }
 
-// A dedicated warm glow tucked just behind the heart planet, so the nebula
-// reads as actually illuminating it (rim/backlight) rather than only
-// glowing somewhere in the far background.
-const planetBacklight = makeGlowSprite(0xff8f6f, 260, 0, 6, -95, 0.55);
-planetBacklight.userData = { phase: 0, speed: 0.04 };
+// A dedicated warm glow tucked just behind the heart planet — this is the
+// "spotlight" that should read as actually illuminating it. Kept tighter
+// (smaller, closer) and with its own higher opacity multiplier so it stays
+// focused on the planet instead of washing light over the whole scene.
+const planetBacklight = makeGlowSprite(0xff8f6f, 220, 0, 6, -75, 0.75);
+planetBacklight.userData = { phase: 0, speed: 0.04, opacityMult: 1.7 };
 nebulaSprites.push(planetBacklight);
 scene.add(planetBacklight);
 
@@ -560,39 +562,20 @@ for (let i = 1; i <= PHOTO_COUNT; i++) {
   photoTextures.push(tex);
 }
 
-// --- Photo layout: 3 zones ---
-// 1) inner field  — loose floaters close around the heart planet
-// 2) fence        — a dense wall of photos standing just OUTSIDE the white
-//                    particle ring (never overlapping it), so the ring stays
-//                    clean and the photos form a boundary/curtain around it
-// 3) outer field   — the rest of the photos, kept close together so they
-//                    don't feel scattered too far apart
+// --- Photo layout ---
+// Nothing floats near the heart planet itself — every photo sits outside
+// the white ring. Density is naturally highest just past the ring (so it
+// still reads as a boundary around it) and smoothly thins out further away,
+// using one continuous random distribution instead of separate zones, so
+// there's no hard seam and no perfectly-touching "grid" look — just a
+// natural gradient that blends into the rest of the photos.
 
-const RING_INNER = 15.5, RING_OUTER = 26; // must match buildRing()
+const RING_OUTER = 26; // must match buildRing()
+const FIELD_R_MIN = RING_OUTER + 3.5; // clear gap so nothing touches/overlaps the white dots
+const FIELD_R_MAX = 120;
+const FIELD_R_BIAS = 2.15; // >1 = denser near FIELD_R_MIN, thinning out naturally further away
 
-const INNER_R_MIN = 4, INNER_R_MAX = 13.5;
-const INNER_COUNT = 900;
-
-const FENCE_R_START = RING_OUTER + 2; // starts clearly outside the white dots, never covering them
-const FENCE_RADII = [FENCE_R_START, FENCE_R_START + 3, FENCE_R_START + 6];
-const FENCE_HEIGHTS = [-1.3, -0.4, 0.5, 1.4]; // 4 stacked rows for a taller, more solid wall
-const FENCE_SPACING = 1.0; // world units between fence-card centers, tuned so neighboring cards overlap slightly and close any gaps
-const fencePositions = [];
-for (const fr of FENCE_RADII) {
-  const perRing = Math.max(24, Math.ceil((2 * Math.PI * fr) / FENCE_SPACING));
-  for (const fy of FENCE_HEIGHTS) {
-    for (let k = 0; k < perRing; k++) {
-      fencePositions.push({ radius: fr, y: fy, angle: (k / perRing) * Math.PI * 2 });
-    }
-  }
-}
-const FENCE_COUNT = fencePositions.length;
-
-const OUTER_R_MIN = FENCE_RADII[FENCE_RADII.length - 1] + 3; // stays outside the fence too
-const OUTER_R_MAX = 95;
-const OUTER_COUNT = 2760;
-
-const FLOATER_COUNT = INNER_COUNT + FENCE_COUNT + OUTER_COUNT;
+const FLOATER_COUNT = 6000;
 
 const CARD_W = 1;
 const CARD_H = CARD_W * (16 / 9);
@@ -638,57 +621,21 @@ for (let i = 0; i < FLOATER_COUNT; i++) {
   const mesh = instancedMeshes[photoIdx];
   const instanceId = mesh.count++;
 
-  let posX, posZ, baseY, scale, facingY, tiltX, tiltZ, bobAmp, wobbleAmp, spinSpeed;
-  spinSpeed = 0.05 + Math.random() * 0.06;
-
-  if (i < INNER_COUNT) {
-    // Zone 1: loose field close around the heart planet.
-    const depthT = Math.pow(Math.random(), 0.45);
-    const radius = INNER_R_MIN + depthT * (INNER_R_MAX - INNER_R_MIN);
-    const angle = Math.random() * Math.PI * 2;
-    baseY = (Math.random() - 0.5) * (5 + depthT * 6);
-    scale = 0.8 + Math.random() * 1.0;
-    posX = Math.cos(angle) * radius;
-    posZ = Math.sin(angle) * radius;
-    facingY = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.6;
-    tiltX = (Math.random() - 0.5) * 0.26;
-    tiltZ = (Math.random() - 0.5) * 0.22;
-    bobAmp = 0.5 + Math.random() * 0.6;
-    wobbleAmp = 0.06 + Math.random() * 0.05;
-  } else if (i < INNER_COUNT + FENCE_COUNT) {
-    // Zone 2: the fence — standing cards packed tightly around the ring
-    // radius/height so they wall off and hide the white particle ring.
-    const fp = fencePositions[i - INNER_COUNT];
-    const jitterAngle = (Math.random() - 0.5) * (FENCE_SPACING / fp.radius) * 0.15;
-    const radius = fp.radius + (Math.random() - 0.5) * 0.5;
-    const angle = fp.angle + jitterAngle;
-    baseY = fp.y + (Math.random() - 0.5) * 0.2;
-    scale = 1.08 + Math.random() * 0.22; // slightly larger/uniform so cards overlap and fully close the gaps
-    posX = Math.cos(angle) * radius;
-    posZ = Math.sin(angle) * radius;
-    facingY = angle + Math.PI / 2; // tangential, panel-like, minimal randomness so it reads as a wall
-    tiltX = (Math.random() - 0.5) * 0.05;
-    tiltZ = (Math.random() - 0.5) * 0.05;
-    bobAmp = 0.08 + Math.random() * 0.08; // barely moves, stays wall-like
-    wobbleAmp = 0.015 + Math.random() * 0.015;
-    spinSpeed = 0.002 + Math.random() * 0.003;
-  } else {
-    // Zone 3: outer field, pulled in much closer than before (max radius
-    // reduced) and biased less toward emptiness so photos don't feel
-    // scattered too far apart from each other.
-    const depthT = Math.pow(Math.random(), 0.65);
-    const radius = OUTER_R_MIN + depthT * (OUTER_R_MAX - OUTER_R_MIN);
-    const angle = Math.random() * Math.PI * 2;
-    baseY = (Math.random() - 0.5) * (5 + depthT * 7);
-    scale = 0.85 + Math.random() * 1.0;
-    posX = Math.cos(angle) * radius;
-    posZ = Math.sin(angle) * radius;
-    facingY = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.6;
-    tiltX = (Math.random() - 0.5) * 0.26;
-    tiltZ = (Math.random() - 0.5) * 0.22;
-    bobAmp = 0.5 + Math.random() * 0.6;
-    wobbleAmp = 0.06 + Math.random() * 0.05;
-  }
+  const depthT = Math.pow(Math.random(), FIELD_R_BIAS);
+  const radius = FIELD_R_MIN + depthT * (FIELD_R_MAX - FIELD_R_MIN);
+  const angle = Math.random() * Math.PI * 2;
+  // tighter vertical spread near the ring (keeps the "boundary" feel there),
+  // opening up gradually further out for natural depth
+  const baseY = (Math.random() - 0.5) * (2.6 + depthT * 11);
+  const scale = 0.85 + Math.random() * 1.0;
+  const posX = Math.cos(angle) * radius;
+  const posZ = Math.sin(angle) * radius;
+  const facingY = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.7;
+  const tiltX = (Math.random() - 0.5) * 0.26;
+  const tiltZ = (Math.random() - 0.5) * 0.22;
+  const bobAmp = 0.4 + Math.random() * 0.6;
+  const wobbleAmp = 0.05 + Math.random() * 0.06;
+  const spinSpeed = 0.04 + Math.random() * 0.06;
 
   const card = {
     mesh, instanceId,
@@ -933,7 +880,8 @@ function animate() {
 
   for (const sp of nebulaSprites) {
     const mat = sp.material;
-    mat.opacity = 0.40 + 0.10 * Math.sin(t * sp.userData.speed + sp.userData.phase);
+    const mult = sp.userData.opacityMult || 1;
+    mat.opacity = mult * (0.34 + 0.09 * Math.sin(t * sp.userData.speed + sp.userData.phase));
   }
 
   if (introFinished) {
