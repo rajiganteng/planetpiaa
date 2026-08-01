@@ -340,7 +340,144 @@ addTwinkle(starsNear, 1.1, 0.55);
 addTwinkle(starsFar, 0.9, 0.5);
 scene.add(starsNear, starsFar);
 
+function makePlanetTexture(baseColor) {
+  const RES = 256;
+  const c = document.createElement('canvas');
+  c.width = RES; c.height = RES;
+  const ctx = c.getContext('2d');
+  const col = new THREE.Color(baseColor);
+  ctx.fillStyle = `rgb(${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)})`;
+  ctx.fillRect(0, 0, RES, RES);
+  // soft horizontal bands for a bit of surface texture
+  for (let i = 0; i < 7; i++) {
+    const y = (i / 7) * RES + Math.random() * 10;
+    const h = 6 + Math.random() * 16;
+    ctx.fillStyle = `rgba(0,0,0,${0.06 + Math.random() * 0.08})`;
+    ctx.fillRect(0, y, RES, h);
+  }
+  // lit-from-one-side shading so it reads as a sphere, not a flat disc
+  const grad = ctx.createLinearGradient(0, 0, RES, 0);
+  grad.addColorStop(0, 'rgba(255,255,255,0.32)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, RES, RES);
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function makeRadialBandTexture(colorHex, warm) {
+  const RES = 256;
+  const c = document.createElement('canvas');
+  c.width = 1; c.height = RES;
+  const ctx = c.getContext('2d');
+  const col = new THREE.Color(colorHex);
+  for (let y = 0; y < RES; y++) {
+    const t = y / RES;
+    const edgeFade = Math.pow(Math.sin(t * Math.PI), warm ? 0.7 : 1.1);
+    const band = warm ? 1 : (0.4 + 0.5 * Math.abs(Math.sin(t * 16)));
+    const r = warm ? 255 : Math.round(col.r * 255);
+    const g = warm ? Math.round(140 + 110 * (1 - t)) : Math.round(col.g * 255);
+    const b = warm ? Math.round(50 + 70 * (1 - t) * (1 - t)) : Math.round(col.b * 255);
+    const a = edgeFade * band;
+    ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+    ctx.fillRect(0, y, 1, 1);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// A small ringed planet sitting far in the background — purely decorative
+// scenery, doesn't interact with the photos or the heart.
+function makeRingedPlanet(baseColor, ringColor, size, x, y, z, tilt) {
+  const group = new THREE.Group();
+  const sphereMat = new THREE.MeshBasicMaterial({ map: makePlanetTexture(baseColor), fog: false });
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(size, 28, 28), sphereMat);
+  group.add(sphere);
+  const ringMat = new THREE.MeshBasicMaterial({
+    map: makeRadialBandTexture(ringColor, false), transparent: true, side: THREE.DoubleSide,
+    depthWrite: false, fog: false, opacity: 0.85,
+  });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(size * 1.5, size * 2.4, 64), ringMat);
+  ring.rotation.x = Math.PI / 2 - 0.35;
+  group.add(ring);
+  group.position.set(x, y, z);
+  group.rotation.z = tilt || 0.25;
+  return group;
+}
+
+// A distant black hole: an opaque core blocking the starfield behind it,
+// ringed by a warm, glowing accretion disk.
+function makeBlackHole(size, x, y, z, tilt) {
+  const group = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(size * 0.5, 24, 24),
+    new THREE.MeshBasicMaterial({ color: 0x000000, fog: false })
+  );
+  group.add(core);
+  const diskMat = new THREE.MeshBasicMaterial({
+    map: makeRadialBandTexture(0xffb347, true), transparent: true, side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+  });
+  const disk = new THREE.Mesh(new THREE.RingGeometry(size * 0.6, size * 1.8, 96), diskMat);
+  group.add(disk);
+  group.position.set(x, y, z);
+  group.rotation.x = Math.PI / 2 - (tilt || 0.5);
+  group.rotation.z = 0.15;
+  return group;
+}
+
+// A distant spiral galaxy — same canvas-glow technique as the nebula
+// sprites, but with spiral arms baked into the alpha instead of a plain
+// radial falloff.
+function makeGalaxySprite(colorHex, size, x, y, z, opacity) {
+  const RES = 512;
+  const c = document.createElement('canvas');
+  c.width = c.height = RES;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(RES, RES);
+  const col = new THREE.Color(colorHex);
+  const r0 = Math.round(col.r * 255), g0 = Math.round(col.g * 255), b0 = Math.round(col.b * 255);
+  const cx = RES / 2, cy = RES / 2, maxD = RES / 2;
+  for (let py = 0; py < RES; py++) {
+    for (let px = 0; px < RES; px++) {
+      const dx = (px - cx) / maxD, dy = (py - cy) * 0.6 / maxD;
+      const d = Math.min(1, Math.sqrt(dx * dx + dy * dy));
+      const ang = Math.atan2(dy, dx);
+      const spiral = 0.5 + 0.5 * Math.sin(ang * 3 + d * 11);
+      const core = Math.pow(Math.max(0, 1 - d), 3);
+      const arms = spiral * Math.pow(Math.max(0, 1 - d), 1.5) * 0.65;
+      const a = Math.max(0, Math.min(1, opacity * (core * 1.3 + arms)));
+      const idx = (py * RES + px) * 4;
+      img.data[idx] = r0; img.data[idx + 1] = g0; img.data[idx + 2] = b0;
+      img.data[idx + 3] = Math.round(a * 255);
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(size, size * 0.6, 1);
+  sprite.position.set(x, y, z);
+  return sprite;
+}
+
+// Placed well past the photo field (radius ~125) and away from the
+// reserved planet-light angle (-90°) so none of it competes with the heart
+// or the photos — this is background scenery, visible through the gaps.
+scene.add(makeRingedPlanet(0xd9a066, 0xf0d9b0, 22, Math.cos(0.7) * 360, -55, Math.sin(0.7) * 360, 0.3));
+scene.add(makeBlackHole(46, Math.cos(2.5) * 480, 70, Math.sin(2.5) * 480, 0.45));
+scene.add(makeGalaxySprite(0x8ec9ff, 210, Math.cos(-2.1) * 560, 95, Math.sin(-2.1) * 560, 0.5));
+scene.add(makeRingedPlanet(0x8fb0ff, 0xd8e6ff, 14, Math.cos(4.4) * 300, 45, Math.sin(4.4) * 300, -0.4));
+
 function makeGlowSprite(colorHex, size, x, y, z, opacity) {
+
+
   // NOTE: ctx.createRadialGradient() gets dithered by some browsers (notably
   // iOS Safari) to avoid banding, which shows up as visible speckle/dot
   // noise once the texture is stretched across a huge sprite. Writing the
