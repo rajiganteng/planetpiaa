@@ -205,6 +205,7 @@ renderer.domElement.addEventListener('webglcontextlost', (e) => {
   e.preventDefault();
 }, false);
 renderer.domElement.addEventListener('webglcontextrestored', () => {
+  if (renderer.state && renderer.state.reset) renderer.state.reset();
   scene.traverse((obj) => {
     if (obj.geometry) {
       const attrs = obj.geometry.attributes;
@@ -409,18 +410,18 @@ for (let i = 0; i < nebulaColors.length; i++) {
   scene.add(sprite);
 }
 
-// A dedicated warm glow tucked just behind the heart planet — this is the
-// "spotlight" that should read as actually illuminating it. It's added to
-// `world` (not `scene`) so it rotates and scales together with the planet;
-// adding it to the static scene was the bug that made it drift away from
-// the planet and end up floating among the photos as the scene spins.
-// Kept close and small (just outside the ring, radius ~26) so it lights the
-// planet's silhouette without sitting on top of the heart itself or
-// reaching out into the photo field that starts at radius ~32.
-const planetBacklight = makeGlowSprite(0xffa726, 42, 0, 24, -20, 0.95);
-planetBacklight.userData = { phase: 0, speed: 0.04, opacityMult: 1.5 };
-nebulaSprites.push(planetBacklight);
-world.add(planetBacklight);
+// A warm nebula aimed directly behind the planet (from the camera's
+// front-facing view) so it reads as the light source illuminating the
+// heart. Sized and positioned like the rest of the background nebula
+// field above — not a separate close blob — so it blends in as part of
+// the sky behind the planet instead of floating on top of it.
+{
+  const dist = 480;
+  const behindPlanet = makeGlowSprite(0xffa726, 220, 0, 20, -dist, 0.45);
+  behindPlanet.userData = { phase: 0, speed: 0.05, opacityMult: 1.6 };
+  nebulaSprites.push(behindPlanet);
+  scene.add(behindPlanet);
+}
 
 const shootingStarGeo = new THREE.BufferGeometry();
 const SHOOTING_STAR_SEGMENTS = 28;
