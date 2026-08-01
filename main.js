@@ -402,7 +402,7 @@ for (let i = 0; i < nebulaColors.length; i++) {
     Math.cos(angle) * dist,
     (Math.random() - 0.5) * 160,
     Math.sin(angle) * dist,
-    0.24 + Math.random() * 0.07
+    0.38 + Math.random() * 0.10
   );
   sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05, opacityMult: 1 };
   nebulaSprites.push(sprite);
@@ -414,8 +414,11 @@ for (let i = 0; i < nebulaColors.length; i++) {
 // `world` (not `scene`) so it rotates and scales together with the planet;
 // adding it to the static scene was the bug that made it drift away from
 // the planet and end up floating among the photos as the scene spins.
-const planetBacklight = makeGlowSprite(0xffb347, 58, 0, 6, -46, 0.85);
-planetBacklight.userData = { phase: 0, speed: 0.04, opacityMult: 1.1 };
+// Kept close and small (just outside the ring, radius ~26) so it lights the
+// planet's silhouette without sitting on top of the heart itself or
+// reaching out into the photo field that starts at radius ~32.
+const planetBacklight = makeGlowSprite(0xffa726, 40, 0, 6, -28, 0.95);
+planetBacklight.userData = { phase: 0, speed: 0.04, opacityMult: 1.35 };
 nebulaSprites.push(planetBacklight);
 world.add(planetBacklight);
 
