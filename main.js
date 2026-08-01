@@ -564,21 +564,11 @@ function makeGlowSprite(colorHex, size, x, y, z, opacity) {
   const col = new THREE.Color(colorHex);
   const r = Math.round(col.r * 255), g = Math.round(col.g * 255), b = Math.round(col.b * 255);
   const cx = RES / 2, cy = RES / 2, maxD = RES / 2;
-  const seed = Math.random() * 1000;
   for (let py = 0; py < RES; py++) {
     for (let px = 0; px < RES; px++) {
       const dx = px - cx, dy = py - cy;
       const d = Math.min(1, Math.sqrt(dx * dx + dy * dy) / maxD);
-      const ang = Math.atan2(dy, dx);
-      const envelope = Math.pow(1 - d, 2.2);
-      // layered turbulence gives the glow wispy, cloud-like internal
-      // structure instead of a perfectly flat radial gradient — still
-      // bounded by `envelope` so it always fades cleanly to 0 at the edge
-      const wisp1 = Math.sin(ang * 4 + d * 8 + seed);
-      const wisp2 = Math.sin(ang * 9 - d * 15 + seed * 1.6);
-      const wisp3 = Math.sin(px * 0.05 + py * 0.04 + seed * 2.2);
-      const wisp = 0.62 + 0.22 * wisp1 + 0.1 * wisp2 + 0.12 * wisp3;
-      const a = Math.max(0, opacity * envelope * Math.max(0.3, wisp));
+      const a = Math.max(0, opacity * Math.pow(1 - d, 2.2));
       const idx = (py * RES + px) * 4;
       img.data[idx] = r;
       img.data[idx + 1] = g;
@@ -1126,7 +1116,7 @@ function animate() {
   for (const sp of nebulaSprites) {
     const mat = sp.material;
     const mult = sp.userData.opacityMult || 1;
-    mat.opacity = mult * (0.55 + 0.12 * Math.sin(t * sp.userData.speed + sp.userData.phase));
+    mat.opacity = mult * (0.72 + 0.14 * Math.sin(t * sp.userData.speed + sp.userData.phase));
   }
 
   if (introFinished) {
