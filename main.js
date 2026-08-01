@@ -388,8 +388,15 @@ const nebulaColors = [
   0xffd166, // soft amber
   0xb388ff, // lavender
 ];
+// Index 6 (cyan) sits in the angle slot nearest "directly behind the
+// planet" — skip generating it here and use that reserved slot for the
+// dedicated planet-lighting nebula below instead. Without this, the random
+// jitter could occasionally place it right next to the dedicated sprite,
+// which is what caused the two glows to clump together.
+const PLANET_LIGHT_SLOT = 6;
 const nebulaSprites = [];
 for (let i = 0; i < nebulaColors.length; i++) {
+  if (i === PLANET_LIGHT_SLOT) continue;
   const angle = (i / nebulaColors.length) * Math.PI * 2 + Math.random() * 0.5;
   // Pushed well past the photo field (which only reaches radius ~125) and
   // shrunk down — these used to be sized 380-540 at distance 320-460, which
@@ -403,22 +410,22 @@ for (let i = 0; i < nebulaColors.length; i++) {
     Math.cos(angle) * dist,
     (Math.random() - 0.5) * 160,
     Math.sin(angle) * dist,
-    0.38 + Math.random() * 0.10
+    0.42 + Math.random() * 0.13
   );
-  sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05, opacityMult: 1.6 };
+  sprite.userData = { phase: Math.random() * Math.PI * 2, speed: 0.05 + Math.random() * 0.05, opacityMult: 1.8 };
   nebulaSprites.push(sprite);
   scene.add(sprite);
 }
 
-// A warm nebula aimed directly behind the planet (from the camera's
-// front-facing view) so it reads as the light source illuminating the
-// heart. Sized and positioned like the rest of the background nebula
-// field above — not a separate close blob — so it blends in as part of
-// the sky behind the planet instead of floating on top of it.
+// The dedicated warm light behind the planet, in its own reserved angle
+// slot so it never overlaps another nebula. Pulled in closer than the
+// background ring so its edge visibly grazes the top of the heart, while
+// staying above/behind it — not centered over the planet or the photos.
 {
-  const dist = 480;
-  const behindPlanet = makeGlowSprite(0xffa726, 220, 0, 20, -dist, 0.45);
-  behindPlanet.userData = { phase: 0, speed: 0.05, opacityMult: 1.6 };
+  const angle = -Math.PI / 2; // straight behind the heart, camera-forward
+  const dist = 260;
+  const behindPlanet = makeGlowSprite(0xffb23f, 170, Math.cos(angle) * dist, 16, Math.sin(angle) * dist, 0.62);
+  behindPlanet.userData = { phase: 0, speed: 0.05, opacityMult: 1.8 };
   nebulaSprites.push(behindPlanet);
   scene.add(behindPlanet);
 }
